@@ -144,6 +144,10 @@ function loft(nodes, o = {}) {
   for (let k = 0; k < rings.length; k++) { const a = k * (seg + 1), b = a + seg, n = V().fromBufferAttribute(nr, a).add(V().fromBufferAttribute(nr, b)).normalize(); nr.setXYZ(a, n.x, n.y, n.z); nr.setXYZ(b, n.x, n.y, n.z); }
   return { geo: g, rings };
 }
+// a finger segment along +z: a tapered tube, slightly flattened underneath
+const fingerGeo = (L, r0, r1) => loft([{ p: V(0, 0, -0.35), rx: r0 * 0.92, ry: r0 * 0.85 }, { p: V(0, 0.06, L * 0.5), rx: (r0 + r1) * 0.5, ry: (r0 + r1) * 0.44 }, { p: V(0, 0, L), rx: r1, ry: r1 * 0.88 }, { p: V(0, -0.05, L + 0.3), rx: r1 * 0.55, ry: r1 * 0.5 }], { seg: 12, up: V(0, 1, 0), uRep: 1, tile: 6, belly: 0.85, noise: 0.05 }).geo;
+// a hooked claw along +z, curving down toward the palm, narrow from side to side
+const clawGeo = (len, r) => { const n = []; for (let i = 0; i <= 6; i++) { const t = i / 6; n.push({ p: V(0, -0.55 * len * t * t, len * t * (1 - 0.15 * t)), rx: r * (1 - 0.93 * t) * 0.7, ry: r * (1 - 0.93 * t) }); } return loft(n, { seg: 10, up: V(0, 1, 0), uRep: 1, tile: 4, belly: 1 }).geo; };
 function lumpy(rx, ry, rz, amp = 0.08, seg = 20) {
   const g = new THREE.SphereGeometry(1, seg, Math.round(seg * 0.7)), p = g.attributes.position, v = V(), o = rnd(0, 100);
   for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const n = Math.sin(v.x * 5.1 + o) * Math.sin(v.y * 4.3 + o * 1.3) * Math.sin(v.z * 6.7 + o * 0.7); v.multiplyScalar(1 + amp * n); p.setXYZ(i, v.x * rx, v.y * ry, v.z * rz); }
@@ -221,9 +225,11 @@ export function buildKaiju() {
       { p: sh.clone().lerp(el, 0.5), rx: 4.1, ry: 4.3, bone: 'sh' + S },
       { p: el, rx: 3.4, ry: 3.5, bone: 'el' + S },
       { p: el.clone().lerp(hand, 0.5), rx: 3.0, ry: 3.1, bone: 'el' + S },
-      { p: hand, rx: 2.7, ry: 2.4, bone: 'hand' + S },
-      { p: hand.clone().add(V(0, -1.4, 3.3)), rx: 2.2, ry: 1.3, bone: 'fing' + S },
-      { p: hand.clone().add(V(0, -1.8, 4.6)), rx: 0.4, ry: 0.4, bone: 'fing' + S },
+      // the wrist narrows, then a broad, flat palm ending in a row of knuckles (the fingers are separate jointed pieces)
+      { p: hand, rx: 2.5, ry: 2.3, bone: 'hand' + S },
+      { p: hand.clone().add(V(0, -1.0, 2.0)), rx: 3.0, ry: 1.75, bone: 'hand' + S },
+      { p: hand.clone().add(V(0, -1.7, 3.6)), rx: 2.9, ry: 1.4, bone: 'fing' + S },
+      { p: hand.clone().add(V(0, -2.0, 4.3)), rx: 1.4, ry: 0.8, bone: 'fing' + S },
     ], { bones: bi, seg: 20, up: V(0, 0, 1), uRep: 2, tile: 16, belly: 1, noise: 0.05 }).geo);
   }
   const mesh = new THREE.SkinnedMesh(mergeGeometries(geos), M.skin);
@@ -275,9 +281,20 @@ export function buildKaiju() {
     const an = W('ankle' + S), hand = W('hand' + S), fwd = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2 + 0.25, 0, 0));
     for (let k = -1; k <= 1; k++) att('toe' + S, new THREE.ConeGeometry(0.75, 3.4, 6), M.claw, an.clone().add(V(k * 2.9, -2.6, 10.6 - Math.abs(k) * 0.8)), fwd);
     att('ankle' + S, new THREE.ConeGeometry(0.8, 3, 6), M.claw, an.clone().add(V(0, -2.2, -3.5)), new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2 - 0.3, 0, 0)));
-    for (let k = -1; k <= 1; k++) att('fing' + S, new THREE.ConeGeometry(0.4, 2.6, 6), M.claw, hand.clone().add(V(k * 1.3, -2.2, 5)), new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2 + 0.6, 0, 0)));
-    // a thumb claw on the inside of the wrist
-    att('hand' + S, new THREE.ConeGeometry(0.42, 2.2, 6), M.claw, hand.clone().add(V(-s * 2.2, -0.6, 2.4)), qd(V(-s * 0.6, -0.5, 0.8)));
+    // the hand: four thick fingers of two segments each, knuckle pads, hooked claws, and an opposed thumb
+    j['kf' + S] = [];
+    const kn = hand.clone().add(V(0, -1.7, 3.6)), fdir = V(0, -0.55, 0.84).normalize();
+    const digit = (base, d, L, r, spread, thumb) => {
+      const Z = d.clone().normalize(), X = V(Z.z, 0, -Z.x).normalize(), Y = V().crossVectors(Z, X);
+      const frame = new THREE.Group(); frame.position.copy(base).sub(W('fing' + S)); frame.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z)); j['fing' + S].add(frame);
+      const prox = new THREE.Group(), mid = new THREE.Group(); frame.add(prox); prox.add(mid); mid.position.z = L * 0.55;
+      const m1 = new THREE.Mesh(fingerGeo(L * 0.55, r, r * 0.86), M.skin), m2 = new THREE.Mesh(fingerGeo(L * 0.45, r * 0.86, r * 0.7), M.skin), c = new THREE.Mesh(clawGeo(r * 3.4, r * 0.62), M.claw);
+      const pad = new THREE.Mesh(lumpy(r * 1.05, r * 0.9, r * 1.1, 0.12, 12), M.skin); pad.position.set(0, r * 0.15, 0); c.position.z = L * 0.45 + 0.05;
+      for (const m of [m1, m2, c, pad]) { m.castShadow = true; m.receiveShadow = true; }
+      prox.add(m1, pad); mid.add(m2, c); j['kf' + S].push({ prox, mid, spread, thumb });
+    };
+    [[-2.0, 2.3, 0.78], [-0.68, 2.75, 0.86], [0.68, 2.75, 0.86], [2.0, 2.3, 0.78]].forEach(([x, L, r]) => digit(kn.clone().add(V(x, 0.1 - Math.abs(x) * 0.12, -Math.abs(x) * 0.25)), fdir.clone().applyAxisAngle(V(0, 1, 0), x * 0.09), L, r, Math.sign(x) * (Math.abs(x) > 1 ? 1 : 0.4), false));
+    digit(hand.clone().add(V(-s * 2.4, -1.0, 2.0)), V(-s * 0.6, -0.45, 0.66), 2.1, 0.82, 0, true);
   }
 
   // ---- extra detail: belly scutes, bony spikes, horns, gills, old glowing wounds, a tongue

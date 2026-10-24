@@ -6,8 +6,10 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { buildWorld, SHORE } from './world.js?v=2';
 import { makeFx } from './fx.js?v=3';
-import { Fighter, think, SUPERS } from './fighters.js?v=3';
+import { Fighter, think } from './fighters.js?v=4';
 import { Audio } from './audio.js?v=2';
+import { T, getLang, setLang, applyDom } from './i18n.js?v=1';
+applyDom();
 
 const $ = (s) => document.querySelector(s);
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -16,9 +18,9 @@ const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 // ------------------------------------------------------------------ quality
 const mobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || Math.min(innerWidth, innerHeight) < 600;
 const PRESETS = {
-  low: { name: '流暢', pr: 0.75, aa: false, shadows: false, shadowSize: 1024, water: true, waterRes: 256, streetLights: false, rain: 5000, helis: 1, particles: 1800, fireLights: 2, bloom: true },
-  mid: { name: '標準', pr: 1, aa: false, shadows: true, shadowSize: 2048, water: true, waterRes: 512, streetLights: false, rain: 12000, helis: 2, particles: 3500, fireLights: 4, bloom: true },
-  high: { name: '電影', pr: Math.min(2, devicePixelRatio), aa: true, shadows: true, shadowSize: 4096, water: true, waterRes: 1024, streetLights: true, rain: 22000, helis: 3, particles: 6000, fireLights: 6, bloom: true },
+  low: { name: 'qLow', pr: 0.75, aa: false, shadows: false, shadowSize: 1024, water: true, waterRes: 256, streetLights: false, rain: 5000, helis: 1, particles: 1800, fireLights: 2, bloom: true },
+  mid: { name: 'qMid', pr: 1, aa: false, shadows: true, shadowSize: 2048, water: true, waterRes: 512, streetLights: false, rain: 12000, helis: 2, particles: 3500, fireLights: 4, bloom: true },
+  high: { name: 'qHigh', pr: Math.min(2, devicePixelRatio), aa: true, shadows: true, shadowSize: 4096, water: true, waterRes: 1024, streetLights: true, rain: 22000, helis: 3, particles: 6000, fireLights: 6, bloom: true },
 };
 let qKey = (() => { try { return localStorage.getItem('kaiju.q') || (mobile ? 'low' : 'mid'); } catch { return mobile ? 'low' : 'mid'; } })();
 const urlQ = new URLSearchParams(location.search).get('q'); if (PRESETS[urlQ]) qKey = urlQ;
@@ -101,8 +103,9 @@ let beamOn = 0, scorchT = 0;
 function newFight() {
   for (const f of [robot, kaiju]) if (f) scene.remove(f.root);
   robot = new Fighter('robot', scene); kaiju = new Fighter('kaiju', scene);
-  robot.pos.set(0, 0, 90); robot.yaw = Math.PI;
-  kaiju.pos.set(rnd(-30, 30), 0, -150); kaiju.yaw = 0;
+  // they start far apart: the kaiju wading in from the harbour, the jaeger walking down to meet it
+  robot.pos.set(rnd(-20, 20), 0, 150); robot.yaw = Math.PI;
+  kaiju.pos.set(rnd(-40, 40), 0, -215); kaiju.yaw = 0;
   shots.length = 0; endT = 0; fightT = 0; slow = 1; beamOn = 0; director.next = null; director.cut('wide');
 }
 const fighters = () => [robot, kaiju];
@@ -116,7 +119,7 @@ function handleEvents(f, opp) {
   for (const e of f.events) {
     switch (e.type) {
       case 'attack':
-        if (e.super && mode !== 'title') { banner(SUPERS[e.name], f); director.super(f, e.name); }
+        if (e.super && mode !== 'title') { banner(T(e.name), f); director.super(f, e.name); }
         if (e.name === 'beam') { Audio.charge(); Audio.roar(1.4, 1.25); break; }
         if (e.name === 'quake') { Audio.roar(1.6, 0.9); break; }
         if (f.kind === 'robot') { Audio.servo(); if (e.name === 'plasma' || e.super) Audio.charge(); else Audio.whoosh(); }
@@ -142,11 +145,13 @@ function handleEvents(f, opp) {
         if (f.act && !f.act.beamSnd) { f.act.beamSnd = true; Audio.zap(); Audio.hiss(f.act.m.dur * (f.act.m.beam[1] - f.act.m.beam[0])); }
         const v = e.to.clone().sub(e.from), L = Math.max(1, v.length()), fl = 1 + Math.sin(t * 60) * 0.12 + Math.random() * 0.1;
         beamMesh.position.copy(e.from); beamMesh.quaternion.setFromUnitVectors(V(0, 1, 0), v.divideScalar(L)); beamMesh.scale.set(fl, L, fl); beamOn = 0.08;
+        beamDanger(e.from, e.to); dangerAt(e.to, 12, 'beam');
         beamLight.position.copy(e.to); beamLight.intensity = 26000; hitLight.position.copy(e.from); hitLight.intensity = Math.max(hitLight.intensity, 9000);
         fx.sparks(e.to, 6, [0.5, 0.9, 1]); fx.glow.add({ x: e.to.x, y: e.to.y, z: e.to.z, vx: rnd(-6, 6), vy: rnd(4, 14), vz: rnd(-6, 6), life: rnd(0.4, 0.8), size: rnd(10, 18), grow: 1.5, color: [0.3, 0.75, 1], alpha: 0.6 });
         if (e.ground && (scorchT -= rdtNow) < 0) { scorchT = 0.25; fx.dust(e.to.x, e.to.z, 0.6); fx.fire(e.to.x + rnd(-3, 3), e.to.z + rnd(-3, 3), 1, rnd(8, 16)); }
         shake = Math.max(shake, 0.35); break; }
       case 'quake': {
+        if (onFoot && human.alive && Math.hypot(human.pos.x - e.p.x, human.pos.z - e.p.z) < e.r * 0.45) killHuman('blast');
         fx.shockwave(e.p, e.r * (e.big ? 1.4 : 1), e.big ? [0.55, 0.85, 1] : [0.7, 0.9, 1]); Audio.explosion(e.big ? 1.6 : 1.1, camDist(e.p)); Audio.step(2.5, camDist(e.p));
         shake = Math.max(shake, e.big ? 2.2 : 1.5); flash = Math.max(flash, 0.22); if (e.big) slowmo(0.35, 0.6); break; }
       case 'land': fx.dust(e.p.x, e.p.z, 1.1 * e.power); Audio.step(1.5 * e.power, camDist(e.p)); shake = Math.max(shake, Math.min(0.9, 60 / camDist(e.p))); break;
@@ -181,7 +186,7 @@ function updateShots(dt) {
       if (target.alive && target.hitTest(target, s.p, 4)) { const d = target.takeHit(s.dmg, s.from, 22); s.from.emit && s.from.emit('hit', { point: s.p.clone(), dmg: d, move: 'plasma', heavy: true }); boom = true; }
       for (const b of W.buildings) if (b.alive && !b.pole && Math.abs(s.p.x - b.x) < b.w / 2 && Math.abs(s.p.z - b.z) < b.d / 2 && s.p.y < b.h) { W.collapse(b); fx.collapse(b); Audio.collapse(camDist(s.p)); boom = true; break; }
     }
-    if (boom) { fx.explosion(s.p, 1); Audio.explosion(1, camDist(s.p)); bigHit(s.p, 1.2); shots.splice(i, 1); }
+    if (boom) { fx.explosion(s.p, 1); Audio.explosion(1, camDist(s.p)); bigHit(s.p, 1.2); dangerAt(s.p, 14, 'blast'); shots.splice(i, 1); }
   }
 }
 
@@ -198,13 +203,13 @@ function updateMissile(s, i, dt) {
     else for (const b of W.buildings) if (b.alive && !b.pole && Math.abs(s.p.x - b.x) < b.w / 2 && Math.abs(s.p.z - b.z) < b.d / 2 && s.p.y < b.h) { W.collapse(b); fx.collapse(b); Audio.collapse(camDist(s.p)); boom = true; break; }
   }
   fx.trail(s.p);
-  if (boom) { fx.explosion(s.p, 0.45); Audio.explosion(0.5, camDist(s.p)); bigHit(s.p, 0.5); shots.splice(i, 1); }
+  if (boom) { fx.explosion(s.p, 0.45); Audio.explosion(0.5, camDist(s.p)); bigHit(s.p, 0.5); dangerAt(s.p, 9, 'blast'); shots.splice(i, 1); }
 }
 
 // the special move's name across the screen
 let bannerT = 0;
 function banner(text, f) {
-  const b = $('#banner'); b.className = f.kind; $('#bnName').textContent = text; $('#bnWho').textContent = f.kind === 'robot' ? '守望者 MK-IV · 絕招' : '深淵獸 · 絕招';
+  const b = $('#banner'); b.className = f.kind; $('#bnName').textContent = text; $('#bnWho').textContent = T(f.kind === 'robot' ? 'robotName' : 'kaijuName') + ' ' + T('superOf');
   b.hidden = false; b.style.animation = 'none'; void b.offsetWidth; b.style.animation = ''; clearTimeout(bannerT); bannerT = setTimeout(() => { b.hidden = true; }, 2600);
 }
 
@@ -218,7 +223,7 @@ const director = {
     let s; do s = opts[Math.floor(Math.random() * opts.length)]; while (s === this.shot && opts.length > 1);
     this.cut(s);
   },
-  cut(s, len) { this.shot = s; this.t = 0; this.len = len || rnd(4.5, 8); this.seed = Math.random(); this.side = Math.random() < 0.5 ? -1 : 1; this.base = null; this.label = LABELS[s] || ''; $('#feed').textContent = this.label; },
+  cut(s, len) { this.shot = s; this.t = 0; this.len = len || rnd(4.5, 8); this.seed = Math.random(); this.side = Math.random() < 0.5 ? -1 : 1; this.base = null; this.label = LABELS[s] ? T(LABELS[s]) : ''; if (!onFoot) $('#feed').textContent = this.label; },
   impact(p, who) { if (mode !== 'watch' || this.shot === 'hero' || Math.random() < 0.35) return; this.cut('close', 1.6); this.focus = p.clone(); this.who = who; },
   // a special move: a low hero shot of the one winding up, then a wide side view of the payoff
   super(f, name) { if (mode !== 'watch') return; const m = f.moves[name]; this.cut('hero', Math.max(1.2, m.dur * (m.windup || (m.leap ? m.leap[0] : 0.3)))); this.who = f; this.next = { shot: 'side', len: Math.max(3.5, m.dur * 0.8) }; },
@@ -251,7 +256,7 @@ const director = {
     return { pos, look, fov };
   },
 };
-const LABELS = { hero: '● LIVE · CH7 新聞', side: '● LIVE · 新聞直升機 2', wide: '● LIVE · CH7 新聞', heli: '● LIVE · 新聞直升機 2', street: 'REC · 路人手機', low: 'REC · 街口監視器', shoulderR: '守望者 MK-IV · 駕駛艙外部鏡頭', shoulderK: '● LIVE · CH7 新聞', orbit: '● LIVE · 新聞直升機 1', waterline: 'REC · 港口監視器 #04', close: '', face: '', ruin: 'REC · 路人手機', death: '● LIVE · CH7 新聞' };
+const LABELS = { hero: 'camNews', side: 'camHeli2', wide: 'camNews', heli: 'camHeli2', street: 'camPhone', low: 'camCctv', shoulderR: 'camCockpit', shoulderK: 'camNews', orbit: 'camHeli1', waterline: 'camHarbour', ruin: 'camPhone', death: 'camNews' };
 
 // pilot camera: behind your giant, framing the enemy
 function pilotFrame() {
@@ -260,6 +265,75 @@ function pilotFrame() {
   const look = me.pos.clone().lerp(foe.pos, 0.6).setY(42);
   return { pos, look, fov: 46 };
 }
+
+// ------------------------------------------------------------------ on foot: one person in the street, looking up at the fight
+let onFoot = false;
+const human = { pos: V(), yaw: 0, pitch: 0.25, bob: 0, alive: true, t: 0, deadT: 0, cause: '', moving: 0 };
+const inBuilding = (p, r) => { for (const b of W.buildings) if (b.alive && !b.pole && Math.abs(p.x - b.x) < b.w / 2 + r && Math.abs(p.z - b.z) < b.d / 2 + r) return b; return null; };
+function placeHuman() {
+  // somewhere on a street behind the jaeger, out of the way, with a clear view down to the harbour
+  const m = mid(), sees = (p) => { const tgt = m.clone().setY(45), eye = p.clone().setY(1.7), L = eye.distanceTo(tgt); for (let d = 8; d < L; d += 4) { const q = eye.clone().lerp(tgt, d / L); for (const b of W.buildings) if (b.alive && !b.pole && q.y < b.h && Math.abs(q.x - b.x) < b.w / 2 && Math.abs(q.z - b.z) < b.d / 2) return false; } return true; };
+  let found = null;
+  for (let i = 0; i < 800 && !found; i++) { const p = V(rnd(-160, 160), 0, rnd(210, 330)); if (!inBuilding(p, 3) && (i > 600 || sees(p))) found = p; }
+  human.pos.copy(found || V(0, 0, 240));
+  human.yaw = Math.atan2(m.x - human.pos.x, m.z - human.pos.z); human.pitch = 0.22;
+  Object.assign(human, { alive: true, t: 0, deadT: 0, cause: '', bob: 0, moving: 0 });
+}
+function killHuman(cause) {
+  if (!human.alive) return; human.alive = false; human.cause = cause; hurt = 1; shake = Math.max(shake, 2); flash = Math.max(flash, cause === 'beam' || cause === 'blast' ? 0.8 : 0.3);
+  endT = 0; if (document.pointerLockElement) document.exitPointerLock();
+}
+function updateHuman(dt) {
+  if (!human.alive) { human.deadT += dt; return; }
+  human.t += dt;
+  let mv = 0, st = 0;
+  if (keys.has('KeyW') || keys.has('ArrowUp')) mv += 1; if (keys.has('KeyS') || keys.has('ArrowDown')) mv -= 1;
+  if (keys.has('KeyD') || keys.has('ArrowRight')) st += 1; if (keys.has('KeyA') || keys.has('ArrowLeft')) st -= 1;
+  if (touch.active) { mv -= touch.y; st += touch.x; }
+  const pad = navigator.getGamepads ? [...navigator.getGamepads()].find(Boolean) : null;
+  if (pad) { const ax = pad.axes; if (Math.abs(ax[1]) > 0.15) mv -= ax[1]; if (Math.abs(ax[0]) > 0.15) st += ax[0]; if (Math.abs(ax[2]) > 0.15) human.yaw -= ax[2] * dt * 2.2; if (Math.abs(ax[3]) > 0.15) human.pitch = Math.max(-1.2, Math.min(1.35, human.pitch - ax[3] * dt * 1.6)); }
+  const run = keys.has('ShiftLeft') || keys.has('ShiftRight') || Math.hypot(touch.x, touch.y) > 0.92 || (pad && pad.buttons[10] && pad.buttons[10].pressed);
+  const f = V(Math.sin(human.yaw), 0, Math.cos(human.yaw)), r = V(-f.z, 0, f.x), d = f.multiplyScalar(mv).addScaledVector(r, st);
+  const len = Math.min(1, d.length()); human.moving += ((len > 0.05 ? (run ? 1.6 : 1) : 0) - human.moving) * Math.min(1, dt * 6);
+  if (len > 0.05) {
+    d.normalize().multiplyScalar(len * (run ? 13 : 5.5) * dt); human.pos.add(d);
+    // walls: slide along the side of a building
+    const b = inBuilding(human.pos, 0.6);
+    if (b) { const ox = b.w / 2 + 0.6 - Math.abs(human.pos.x - b.x), oz = b.d / 2 + 0.6 - Math.abs(human.pos.z - b.z); if (ox < oz) human.pos.x += Math.sign(human.pos.x - b.x) * ox; else human.pos.z += Math.sign(human.pos.z - b.z) * oz; }
+    const was = Math.floor(human.bob / Math.PI); human.bob += dt * (run ? 15 : 9) * len; if (Math.floor(human.bob / Math.PI) !== was) Audio.step(run ? 0.05 : 0.03, 12, human.pos.z < SHORE);
+  }
+  human.pos.x = Math.max(-420, Math.min(420, human.pos.x)); human.pos.z = Math.max(SHORE + 2, Math.min(520, human.pos.z));
+  // the giants do not see you: underfoot, under a falling body, under a falling building
+  for (const g of [robot, kaiju]) {
+    if (g.air > 15) continue;
+    if (Math.hypot(human.pos.x - g.pos.x, human.pos.z - g.pos.z) < g.R * 0.8) killHuman(g.kind);
+    if (g.down > 0 || !g.alive) { const body = g.pos.clone().addScaledVector(g.face(), -36); if (Math.hypot(human.pos.x - body.x, human.pos.z - body.z) < g.R) killHuman(g.kind); }
+  }
+  for (const b of W.buildings) if (!b.alive && !b.pole && b.fallT !== undefined && b.fallT < 2.5 && Math.abs(human.pos.x - b.x) < b.w / 2 + 4 && Math.abs(human.pos.z - b.z) < b.d / 2 + 4) killHuman('rubble');
+}
+// near a blast or a beam: anything closer than r to the person kills them
+function dangerAt(p, r, cause) { if (onFoot && human.alive && p.distanceTo(human.pos.clone().setY(1.5)) < r) killHuman(cause); }
+function beamDanger(a, b) { if (!onFoot || !human.alive) return; const h = human.pos.clone().setY(1.5), ab = b.clone().sub(a), k = Math.max(0, Math.min(1, h.clone().sub(a).dot(ab) / ab.lengthSq())); if (a.clone().addScaledVector(ab, k).distanceTo(h) < 7) killHuman('beam'); }
+// first-person camera: eye height, a little walking bob; dead, it drops to the ground and looks up at the sky
+function humanFrame() {
+  const dead = !human.alive, k = Math.min(1, human.deadT / 1.2);
+  const eye = human.pos.clone().setY((dead ? 1.7 - 1.4 * k : 1.7) + Math.sin(human.bob * 2) * 0.07 * Math.min(1, human.moving));
+  eye.x += Math.cos(human.bob) * 0.04 * Math.min(1, human.moving);
+  const pitch = dead ? human.pitch + (1.25 - human.pitch) * k : human.pitch;
+  const dir = V(Math.sin(human.yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(human.yaw) * Math.cos(pitch));
+  return { pos: eye, look: eye.clone().addScaledVector(dir, 20), fov: human.moving > 1.2 ? 74 : 68 };
+}
+const canvas = renderer.domElement;
+canvas.addEventListener('click', () => { if (onFoot && human.alive && mode === 'human' && !document.pointerLockElement && canvas.requestPointerLock) canvas.requestPointerLock(); });
+let drag = null;
+canvas.addEventListener('pointerdown', (e) => { if (onFoot && !document.pointerLockElement) drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; });
+addEventListener('pointerup', (e) => { if (drag && drag.id === e.pointerId) drag = null; });
+const look = (dx, dy, k) => { human.yaw -= dx * k; human.pitch = Math.max(-1.2, Math.min(1.35, human.pitch - dy * k)); };
+addEventListener('pointermove', (e) => {
+  if (!onFoot || !human.alive) return;
+  if (document.pointerLockElement === canvas) look(e.movementX, e.movementY, 0.0022);
+  else if (drag && drag.id === e.pointerId) { look(e.clientX - drag.x, e.clientY - drag.y, e.pointerType === 'touch' ? 0.006 : 0.004); drag.x = e.clientX; drag.y = e.clientY; }
+});
 
 // ------------------------------------------------------------------ input
 const keys = new Set(); let gp = null;
@@ -311,27 +385,34 @@ function setupTouch() {
 setupTouch();
 
 // ------------------------------------------------------------------ screens and HUD
-function toTitle() { mode = 'title'; pilot = null; $('#title').hidden = false; $('#hud').hidden = true; $('#end').hidden = true; $('#pads').hidden = true; $('#help').hidden = true; newFight(); robot.pos.set(0, 0, 62); robot.yaw = Math.PI; kaiju.pos.set(-20, 0, -110); director.cut('title', 999); }
+function toTitle() { mode = 'title'; pilot = null; onFoot = false; if (document.pointerLockElement) document.exitPointerLock(); $('#title').hidden = false; $('#hud').hidden = true; $('#end').hidden = true; $('#pads').hidden = true; $('#help').hidden = true; newFight(); robot.pos.set(0, 0, 62); robot.yaw = Math.PI; kaiju.pos.set(-20, 0, -110); director.cut('title', 999); }
 function begin(m) {
-  Audio.start(); newFight(); mode = m === 'watch' ? 'watch' : 'pilot'; pilot = m === 'robot' ? robot : m === 'kaiju' ? kaiju : null;
+  Audio.start(); newFight(); onFoot = m === 'human'; mode = m === 'watch' ? 'watch' : onFoot ? 'human' : 'pilot'; pilot = m === 'robot' ? robot : m === 'kaiju' ? kaiju : null;
   $('#title').hidden = true; $('#hud').hidden = false; $('#end').hidden = true;
-  $('#pads').hidden = !(pilot && (matchMedia('(pointer: coarse)').matches || mobile));
-  $('#help').hidden = !pilot; if (pilot) $('#help').innerHTML = pilot === robot ? HELP_R : HELP_K;
-  document.querySelectorAll('#pads [data-k]').forEach((b) => { const k = b.dataset.k; b.textContent = (pilot === robot ? PAD_R : PAD_K)[k] || ''; b.hidden = !b.textContent; });
+  $('#pads').hidden = !((pilot || onFoot) && (matchMedia('(pointer: coarse)').matches || mobile));
   $('#feed').hidden = !!pilot;
+  if (onFoot) placeHuman();
   director.cut(pilot ? 'wide' : 'waterline', 6);
+  labelHud();
 }
-const HELP_R = '<b>WASD</b> 移動 · <b>J</b> 刺拳 · <b>K</b> 重拳 · <b>L</b> 上勾拳 · <b>I</b> 踢擊 · <b>Q</b> 電漿砲 · <b>C</b> 後撤 · <b>Shift</b> 衝刺 · <b>空白</b> 格擋 · 能量滿：<b>E</b> 飛彈齊射 · <b>F</b> 天降斬 · <b>Esc</b> 離開';
-const HELP_K = '<b>WASD</b> 移動 · <b>J</b> 爪擊 · <b>K</b> 撕咬 · <b>L</b> 甩尾 · <b>I</b> 衝撞 · <b>Q</b> 酸液吐息 · <b>R</b> 咆哮 · <b>C</b> 後跳 · 能量滿：<b>E</b> 原子熱線 · <b>F</b> 震地踐踏 · <b>Esc</b> 離開';
-const PAD_R = { KeyJ: '刺拳', KeyK: '重拳', KeyL: '上勾', KeyI: '踢', KeyQ: '電漿', KeyC: '後撤', ShiftLeft: '衝刺', Space: '格擋', KeyE: '飛彈', KeyF: '天降斬' };
-const PAD_K = { KeyJ: '爪擊', KeyK: '撕咬', KeyL: '甩尾', KeyI: '衝撞', KeyQ: '酸液', KeyR: '咆哮', KeyC: '後跳', KeyE: '熱線', KeyF: '踐踏' };
+// the texts that depend on the mode and the language
+function labelHud() {
+  $('#help').hidden = !(pilot || onFoot); $('#help').innerHTML = onFoot ? T('helpH') : pilot === robot ? T('helpR') : pilot === kaiju ? T('helpK') : '';
+  const pads = onFoot ? {} : T(pilot === robot ? 'padR' : 'padK');
+  document.querySelectorAll('#pads [data-k]').forEach((b) => { const k = b.dataset.k; b.textContent = pads[k] || ''; b.hidden = !b.textContent; });
+  if (onFoot) $('#feed').textContent = T('camMine'); else if (director.label) { director.label = LABELS[director.shot] ? T(LABELS[director.shot]) : ''; $('#feed').textContent = director.label; }
+}
 let muted = false;
 function toggleMute() { muted = !muted; Audio.setMuted(muted); $('#mute').textContent = muted ? '🔇' : '🔊'; }
 $('#mute').onclick = () => { Audio.start(); toggleMute(); };
 document.querySelectorAll('[data-mode]').forEach((b) => b.onclick = () => begin(b.dataset.mode));
-$('#again').onclick = () => begin(pilot === robot ? 'robot' : pilot === kaiju ? 'kaiju' : 'watch');
+$('#again').onclick = () => begin(onFoot ? 'human' : pilot === robot ? 'robot' : pilot === kaiju ? 'kaiju' : 'watch');
 $('#back').onclick = toTitle;
-const qSel = $('#quality'); for (const [k, p] of Object.entries(PRESETS)) { const o = document.createElement('option'); o.value = k; o.textContent = '畫質：' + p.name; qSel.appendChild(o); } qSel.value = qKey;
+const qSel = $('#quality');
+function fillQuality() { qSel.innerHTML = ''; for (const [k, p] of Object.entries(PRESETS)) { const o = document.createElement('option'); o.value = k; o.textContent = T('quality') + T(p.name); qSel.appendChild(o); } qSel.value = qKey; qSel.setAttribute('aria-label', T('quality')); }
+fillQuality();
+$('#lang').textContent = T('langBtn');
+$('#lang').onclick = () => { setLang(getLang() === 'zh' ? 'en' : 'zh'); $('#lang').textContent = T('langBtn'); fillQuality(); if (mode !== 'title') labelHud(); if (mode === 'end') showEnd(); };
 qSel.onchange = () => { try { localStorage.setItem('kaiju.q', qSel.value); } catch {} location.search = ''; location.reload(); };
 
 function hud() {
@@ -339,18 +420,24 @@ function hud() {
   $('#hpRt').textContent = Math.ceil(robot.hp); $('#hpKt').textContent = Math.ceil(kaiju.hp);
   for (const [f, id] of [[robot, '#mtR'], [kaiju, '#mtK']]) { const el = $(id); el.style.width = f.meter + '%'; el.parentNode.classList.toggle('full', f.meter >= 100); }
   if (pilot) {
-    const list = pilot === robot ? [['plasma', 'Q 電漿砲', 7], ['dash', 'Shift 衝刺', 2.5], ['missiles', 'E 飛彈齊射', 6, 1], ['blade', 'F 天降斬', 6, 1]] : [['acid', 'Q 酸液', 6], ['charge', 'I 衝撞', 4.5], ['roar', 'R 咆哮', 9], ['beam', 'E 原子熱線', 6, 1], ['quake', 'F 震地踐踏', 6, 1]];
-    $('#cds').innerHTML = list.map(([k, n, max, sup]) => { const c = pilot.cd[k] || 0, fr = sup ? Math.min(pilot.meter / 100, 1 - c / max) : 1 - c / max; return `<span class="cd${fr >= 1 ? ' ready' : ''}${sup ? ' sup' : ''}"><i style="width:${fr * 100}%"></i>${n}</span>`; }).join('');
+    const list = pilot === robot ? [['plasma', 'cdPlasma', 7], ['dash', 'cdDash', 2.5], ['missiles', 'cdMissiles', 6, 1], ['blade', 'cdBlade', 6, 1]] : [['acid', 'cdAcid', 6], ['charge', 'cdCharge', 4.5], ['roar', 'cdRoar', 9], ['beam', 'cdBeam', 6, 1], ['quake', 'cdQuake', 6, 1]];
+    $('#cds').innerHTML = list.map(([k, key, max, sup]) => { const n = T(key); const c = pilot.cd[k] || 0, fr = sup ? Math.min(pilot.meter / 100, 1 - c / max) : 1 - c / max; return `<span class="cd${fr >= 1 ? ' ready' : ''}${sup ? ' sup' : ''}"><i style="width:${fr * 100}%"></i>${n}</span>`; }).join('');
   } else $('#cds').innerHTML = '';
   const t = Math.floor(fightT); $('#clock').textContent = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 }
 function showEnd() {
   const robotWon = robot.alive; mode = 'end';
-  const youWon = pilot ? pilot.alive : null;
-  $('#endTitle').textContent = pilot ? (youWon ? '勝利' : '戰敗') : (robotWon ? '城市守住了' : '城市陷落');
-  $('#endSub').textContent = robotWon ? '守望者 MK-IV 擊倒了深淵獸。雨還在下，火光照著廢墟。' : '深淵獸擊毀了守望者 MK-IV。牠的咆哮蓋過了警報聲。';
-  const fallen = W.buildings.filter((b) => !b.alive && !b.pole).length;
-  $('#endStats').textContent = `戰鬥時間 ${$('#clock').textContent} · 倒塌建築 ${fallen} 棟`;
+  const youWon = pilot ? pilot.alive : null, fallen = W.buildings.filter((b) => !b.alive && !b.pole).length;
+  if (document.pointerLockElement) document.exitPointerLock();
+  if (onFoot) {
+    $('#endTitle').textContent = human.alive ? T('survived') : T('dead_' + human.cause);
+    $('#endSub').textContent = human.alive ? T(robotWon ? 'robotWonSub' : 'kaijuWonSub') : T('deadSub');
+    const s = Math.floor(human.t); $('#endStats').textContent = T('survivedFor')(`${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`) + ' · ' + T('stats')($('#clock').textContent, fallen);
+  } else {
+    $('#endTitle').textContent = pilot ? T(youWon ? 'win' : 'lose') : T(robotWon ? 'cityHeld' : 'cityFell');
+    $('#endSub').textContent = T(robotWon ? 'robotWonSub' : 'kaijuWonSub');
+    $('#endStats').textContent = T('stats')($('#clock').textContent, fallen);
+  }
   $('#end').hidden = false; $('#pads').hidden = true;
 }
 
@@ -368,19 +455,21 @@ function frame() {
   const inK = pilot === kaiju ? pilotInput() : (mode === 'title' ? { move: 0, strafe: 0 } : think(kaiju, robot, dt));
   robot.update(dt, kaiju, inR, W); kaiju.update(dt, robot, inK, W);
   handleEvents(robot, kaiju); handleEvents(kaiju, robot); updateShots(dt);
-  if ((!robot.alive || !kaiju.alive) && mode !== 'end' && mode !== 'title') { endT += rdt; if (endT > 5) showEnd(); }
+  if (onFoot && mode === 'human') updateHuman(rdt);
+  if (onFoot && !human.alive && mode === 'human') { endT += rdt; if (endT > 3) showEnd(); }
+  else if ((!robot.alive || !kaiju.alive) && mode !== 'end' && mode !== 'title') { endT += rdt; if (endT > 5) showEnd(); }
   Audio.tension(robot.alive && kaiju.alive ? Math.min(1, 60 / Math.max(10, robot.pos.distanceTo(kaiju.pos))) : 0.2);
   // camera
-  let f = pilot && mode === 'pilot' ? pilotFrame() : director.frame(rdt); let cp = clampCam(f.pos, f.look);
+  let f = onFoot ? humanFrame() : pilot && mode === 'pilot' ? pilotFrame() : director.frame(rdt); let cp = onFoot ? f.pos : clampCam(f.pos, f.look);
   // a wall forced the camera right up against the giants: right after a cut, try another shot instead
   for (let tries = 0; tries < 4 && mode === 'watch' && director.t < 0.2 && !['close', 'face'].includes(director.shot) && cp.distanceTo(f.look) < f.pos.distanceTo(f.look) * 0.55; tries++) { director.pick(); f = director.frame(0); cp = clampCam(f.pos, f.look); }
   f.pos = cp;
-  const cut = director.t < rdt * 1.5 && !pilot;
-  if (!camInit || cut) { camPos.copy(f.pos); camLook.copy(f.look); camInit = true; }
+  const cut = director.t < rdt * 1.5 && !pilot && !onFoot;
+  if (!camInit || cut || onFoot) { camPos.copy(f.pos); camLook.copy(f.look); camInit = true; }
   else { const k = 1 - Math.exp(-rdt * (pilot ? 4 : 6)); camPos.lerp(f.pos, k); camLook.lerp(f.look, 1 - Math.exp(-rdt * 5)); }
   camera.position.copy(camPos); camera.position.y = Math.max(camera.position.y, 1.2);
   // handheld drift + shake
-  const hand = director.shot === 'street' || director.shot === 'ruin' ? 0.6 : 0.25;
+  const hand = onFoot ? 0.02 : director.shot === 'street' || director.shot === 'ruin' ? 0.6 : 0.25;
   camera.position.x += Math.sin(t * 1.3) * hand + (Math.random() - 0.5) * shake * 2.2; camera.position.y += Math.sin(t * 1.7 + 1) * hand * 0.6 + (Math.random() - 0.5) * shake * 1.6;
   camera.lookAt(camLook); camera.rotateZ(Math.sin(t * 0.7) * 0.004 * (hand * 4) + (Math.random() - 0.5) * shake * 0.01);
   if (Math.abs(camera.fov - f.fov) > 0.05) { camera.fov += (f.fov - camera.fov) * (cut ? 1 : Math.min(1, rdt * 3)); camera.updateProjectionMatrix(); }
@@ -408,4 +497,4 @@ function sim(seconds, dt = 1 / 30) {
   }
   return { t: Math.round(t2), robot: Math.round(robot.hp), kaiju: Math.round(kaiju.hp), fallen: W.buildings.filter((b) => !b.alive && !b.pole).length };
 }
-window.KN = { sim, get robot() { return robot; }, get kaiju() { return kaiju; }, get mode() { return mode; }, begin, director, W, fx, renderer, toTitle, setSlow: slowmo };
+window.KN = { sim, get robot() { return robot; }, get kaiju() { return kaiju; }, human, get mode() { return mode; }, begin, director, W, fx, renderer, toTitle, setSlow: slowmo };

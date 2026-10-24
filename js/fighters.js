@@ -4,7 +4,7 @@
 // close in, trade blows, break apart and circle, then come back with a special move.
 import * as THREE from 'three';
 import { SHORE } from './world.js?v=2';
-import { buildRobot, buildKaiju } from './models.js?v=2';
+import { buildRobot, buildKaiju } from './models.js?v=3';
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const ease = (x) => x * x * (3 - 2 * x);
@@ -28,7 +28,7 @@ const ROBOT_MOVES = {
   // special: the hull pods open and sixteen missiles arc into the target
   missiles: { dur: 3.2, super: true, salvo: [0.28, 0.78, 16], keys: [[0, {}], [0.18, { podL: [1.25, 0, 0], podR: [1.25, 0, 0], lean: -0.14, dip: 3, shL: [-0.3, 0, -0.55], shR: [-0.3, 0, 0.55], elL: [-0.9, 0, 0], elR: [-0.9, 0, 0] }], [0.85, { podL: [1.25, 0, 0], podR: [1.25, 0, 0], lean: -0.1, dip: 3, shL: [-0.3, 0, -0.55], shR: [-0.3, 0, 0.55], elL: [-0.9, 0, 0], elR: [-0.9, 0, 0] }], [1, {}]] },
   // special: the plasma blade slides out of the left forearm, a thruster leap, and an overhead slash that lands with a shockwave
-  blade: { dur: 2.7, super: true, at: 'bladeTip', hit: [0.55, 0.72], hitR: 15, dmg: 175, knock: 32, down: true, leap: [0.32, 0.6], gap: 6, track: 0.9, quake: 0.6, qr: 46,
+  blade: { dur: 2.7, super: true, at: 'bladeTip', hit: [0.55, 0.72], hitR: 15, dmg: 175, knock: 32, down: 0.45, leap: [0.32, 0.6], gap: 6, track: 0.9, quake: 0.6, qr: 46,
     keys: [[0, {}], [0.14, { blade: 1, shL: [-0.6, 0, -0.9], elL: [-0.6, 0, 0], twist: 0.3 }], [0.3, { blade: 1, dip: 9, lean: 0.3, shL: [-0.2, 0, -0.6], elL: [-0.4, 0, 0], shR: [-0.6, 0, 0.4], elR: [-1.6, 0, 0], thrust: 0.5 }],
       [0.46, { blade: 1, rise: 34, lean: -0.25, shL: [-3.0, 0, -0.2], elL: [-0.5, 0, 0], shR: [-0.8, 0, 0.5], elR: [-1.2, 0, 0], thrust: 1, twist: -0.1 }], [0.56, { blade: 1, rise: 12, lean: 0.2, shL: [-2.0, 0, 0], elL: [-0.3, 0, 0], thrust: 0.8, twist: -0.25 }],
       [0.6, { blade: 1, dip: 10, lean: 0.55, shL: [-0.9, 0, 0.1], elL: [-0.1, 0, 0], thrust: 0.3, twist: -0.35 }], [0.8, { blade: 1, dip: 6, lean: 0.35, shL: [-0.8, 0, 0], elL: [-0.2, 0, 0] }], [1, {}]] },
@@ -55,7 +55,6 @@ const KAIJU_MOVES = {
       [0.58, { rise: 8, lean: 0.25, shL: [-1.8, 0, -0.4], shR: [-1.8, 0, 0.4], jaw: [0.8, 0, 0] }], [0.62, { dip: 11, lean: 0.45, shL: [-1.2, 0, -0.3], shR: [-1.2, 0, 0.3], elL: [-0.2, 0, 0], elR: [-0.2, 0, 0], fingL: [0.5, 0, 0], fingR: [0.5, 0, 0], jaw: [0.6, 0, 0] }],
       [0.8, { dip: 7, lean: 0.3, jaw: [0.9, 0, 0], neck: [-0.3, 0, 0] }], [1, {}]] },
 };
-export const SUPERS = { missiles: '飛彈齊射', blade: '電漿劍 · 天降斬', beam: '原子熱線', quake: '震地踐踏' };
 function sampleKeys(keys, p) {
   let a = keys[0], b = keys[keys.length - 1];
   for (let i = 0; i < keys.length - 1; i++) if (p >= keys[i][0] && p <= keys[i + 1][0]) { a = keys[i]; b = keys[i + 1]; break; }
@@ -75,12 +74,14 @@ export class Fighter {
     this.kind = kind;
     Object.assign(this, kind === 'robot' ? buildRobot() : buildKaiju());
     scene.add(this.root);
-    this.maxHp = kind === 'robot' ? 1550 : 1900; this.hp = this.maxHp;
+    this.maxHp = kind === 'robot' ? 1550 : 2050; this.hp = this.maxHp;
     this.pos = new THREE.Vector3(0, 0, kind === 'robot' ? 90 : -40); this.yaw = kind === 'robot' ? Math.PI : 0; this.yawVel = 0;
     this.vel = new THREE.Vector3(); this.speed = 0; this.phase = 0; this.act = null; this.stun = 0; this.down = 0; this.block = false; this.alive = true; this.dash = 0;
     this.R = kind === 'robot' ? 13 : 24; this.cd = {}; this.lastStep = 0; this.events = []; this.ventT = rnd(4, 8); this.breatheT = rnd(1, 3);
     this.moves = kind === 'robot' ? ROBOT_MOVES : KAIJU_MOVES;
     this.meter = 25; this.air = 0; this.bladeK = 0; this.thrustK = 0;
+    // a knockdown: 0.8 s to fall, a while on the ground, then a slow get-up (roll up to a kneel, push up to standing)
+    this.downDur = kind === 'robot' ? 4.6 : 5.2; this.riseT = kind === 'robot' ? 2.2 : 2.8;
     // the legs' rest geometry, for the foot IK
     this.root.updateMatrixWorld(true); this.legRest = {};
     for (const S of ['L', 'R']) {
@@ -117,7 +118,7 @@ export class Fighter {
     const armour = this.act && this.act.m.super && !o.down;
     if (!blocked && !o.graze) {
       this.hitT = 0; this.hitSide = Math.random() < 0.5 ? -1 : 1; this.hitPow = Math.min(1, knock / 25 + 0.3) * (armour ? 0.4 : 1);
-      if (!armour) { this.stun = Math.max(this.stun, Math.min(1.1, 0.25 + knock / 40)); this.act = null; this.spinYaw = 0; if (o.down || (knock >= 25 && Math.random() < 0.6)) this.down = 2.6; }
+      if (!armour) { this.stun = Math.max(this.stun, Math.min(1.1, 0.25 + knock / 40)); this.act = null; this.spinYaw = 0; const floored = o.down === true || (typeof o.down === 'number' && Math.random() < o.down) || (knock >= 30 && Math.random() < 0.22); if (floored && this.down <= 0) this.down = this.downDur; }
     }
     if (this.hp <= 0) this.die();
     return blocked ? -d : d;
@@ -201,7 +202,7 @@ export class Fighter {
         this.emit('quake', { p: c, r: m.qr, big: !m.at });
         if (!m.at && m.dmg) {
           const dd = Math.max(0, Math.hypot(opp.pos.x - c.x, opp.pos.z - c.z) - opp.R);
-          if (dd < m.qr && opp.air < 8) { const dealt = opp.takeHit(m.dmg * (1 - 0.5 * dd / m.qr), this, m.knock, { down: dd < m.qr * 0.6, unblockable: m.unblock }); this.emit('hit', { point: opp.pos.clone().setY(20), dmg: dealt, move: a.name, heavy: true }); }
+          if (dd < m.qr && opp.air < 8) { const dealt = opp.takeHit(m.dmg * (1 - 0.5 * dd / m.qr), this, m.knock, { down: dd < m.qr * 0.4, unblockable: m.unblock }); this.emit('hit', { point: opp.pos.clone().setY(20), dmg: dealt, move: a.name, heavy: true }); }
         }
         for (const b of world.buildings) if (b.alive && Math.hypot(b.x - c.x, b.z - c.z) < m.qr * 0.7 + Math.max(b.w, b.d) / 2) { if (world.collapse(b)) this.emit('smash', { b }); }
       }
@@ -264,13 +265,19 @@ export class Fighter {
     const br = Math.sin(now * (robot ? 1.1 : 0.75));
     const look = clamp(wrap(Math.atan2(opp.pos.x - this.pos.x, opp.pos.z - this.pos.z) - this.yaw - (this.spinYaw || 0)), -0.7, 0.7);
     // falling (knocked down or dead)
-    let fall = 0;
-    if (this.down > 0) { const q = this.down > 2.0 ? (2.6 - this.down) / 0.6 : this.down < 0.8 ? this.down / 0.8 : 1; fall = ease(clamp(q, 0, 1)); }
+    let fall = 0, up = -1;
+    if (this.down > 0) {
+      const el = this.downDur - this.down;
+      if (el < 0.8) fall = ease(el / 0.8); else if (this.down > this.riseT) fall = 1;
+      else { up = 1 - this.down / this.riseT; fall = up < 0.5 ? 1 - ease(up / 0.5) : 0; }
+    }
+    // getting up: the body sinks into a deep crouch as it rolls upright, then pushes up on its legs
+    const crouch = up < 0 ? 0 : up < 0.5 ? ease(up / 0.5) : 1 - ease((up - 0.5) / 0.5);
     if (!this.alive) { this.deathT += dt; fall = ease(Math.min(1, this.deathT / 2)); }
     // the body rides up over the planted leg (an inverted pendulum), lowest as each foot lands
     const water = this.pos.z < SHORE ? -6 : 0;
     const air = this.air || 0, tuck = Math.min(1, air / 12);
-    const rootY = (robot ? -1.2 : 0) - (act.dip || 0) + air + (robot ? 1.3 : 1.0) * k * g1 * (0.5 - 0.5 * Math.cos(2 * ph));
+    const rootY = (robot ? -1.2 : 0) - (act.dip || 0) - crouch * (robot ? 11 : 13) + air + (robot ? 1.3 : 1.0) * k * g1 * (0.5 - 0.5 * Math.cos(2 * ph));
     // legs: stance feet slide back under the body at walking speed, swing feet arc forward
     if (fall < 0.05) {
       const S = Math.min(26, (this.speed || 0) * Math.PI / Math.max(0.5, this.stepRate || 1)), H = (1.5 + S * 0.22) * k;
@@ -287,7 +294,8 @@ export class Fighter {
         // the toes flick up as the foot leaves the ground
         set('toe' + side, f >= Math.PI ? -0.45 * Math.sin(Math.PI * (f - Math.PI) / Math.PI) * k * (1 - tuck) + tuck * 0.4 : 0, 0, 0);
       }
-    } else for (const n of LEGJ) set(n, 0, 0, 0);
+    } else if (up >= 0) { const kn = 1 - fall * 0.7; for (const S of ['L', 'R']) { set('hip' + S, -1.5 * kn, 0, S === 'L' ? -0.1 : 0.1); set('knee' + S, 2.2 * kn, 0, 0); set('ankle' + S, -0.7 * kn, 0, 0); set('toe' + S, 0.3 * kn, 0, 0); } }
+    else for (const n of LEGJ) set(n, 0, 0, 0);
     if (robot) {
       const guard = this.block ? 1 : 0.72, sw = Math.sin(ph) * 0.16 * k * g1;
       set('shL', -0.85 * guard + sw, 0, -0.12); set('shR', -0.85 * guard - sw, 0, 0.12);
@@ -320,12 +328,14 @@ export class Fighter {
         st[0] += (tx - st[0]) * r; st[1] += (ty - st[1]) * r; set('tail' + i, st[0], st[1], 0);
       });
     }
+    // getting up: lean forward over the knees, hands pushing off the ground
+    if (crouch > 0) for (const [S, s] of [['L', -1], ['R', 1]]) { set('sh' + S, -0.9 * crouch, 0, s * 0.35 * crouch); set('el' + S, -0.5 * crouch, 0, 0); }
     // the action's pose overrides the walk where it says something
     for (const [key, v] of Object.entries(act)) if (Array.isArray(v)) T[key] = v;
     // reacting to a blow: the body snaps back and twists, then recovers
     this.hitT = (this.hitT ?? 9) + dt;
     const hk = this.hitT < 0.9 ? Math.sin(Math.min(1, this.hitT / 0.12) * Math.PI / 2) * Math.exp(-this.hitT * 4) * (this.hitPow || 0.5) : 0;
-    let lean = (act.lean || 0) - 0.45 * hk, twist = (act.twist || 0) + 0.3 * hk * (this.hitSide || 1);
+    let lean = (act.lean || 0) - 0.45 * hk + 0.55 * crouch, twist = (act.twist || 0) + 0.3 * hk * (this.hitSide || 1);
     if (hk > 0) { const h = robot ? 'head' : 'neck'; if (T[h]) T[h] = [T[h][0] - 0.4 * hk, T[h][1] + 0.3 * hk * (this.hitSide || 1), T[h][2]]; }
     if (T.spine) { T.spine = [T.spine[0] + lean, T.spine[1] + twist, T.spine[2]]; }
     if (robot && T.chest) T.chest = [T.chest[0], T.chest[1] + twist * 0.5, T.chest[2]];
@@ -334,12 +344,19 @@ export class Fighter {
     // place the body
     this.root.position.set(this.pos.x, water + rootY - fall * 6, this.pos.z);
     this.root.rotation.y = this.yaw + (this.spinYaw || 0);
-    this.root.rotation.x += ((-fall * 1.45) - this.root.rotation.x) * Math.min(1, dt * 5);
+    this.root.rotation.x += ((-fall * 1.45) - this.root.rotation.x) * Math.min(1, dt * (up >= 0 ? 3 : 5));
     // ease every joint toward its target; legs track tightly so the feet stay planted
     const base = 1 - Math.exp(-dt * (this.act ? 20 : 11)), fast = 1 - Math.exp(-dt * 40), slowK = 1 - Math.exp(-dt * 6);
+    // the kaiju's fingers: one curl value per hand (negative spreads the claws, positive clenches), each knuckle following it
+    if (!robot) for (const S of ['L', 'R']) {
+      const v = T['fing' + S]; delete T['fing' + S]; this.curl = this.curl || { L: 0.15, R: 0.15 };
+      this.curl[S] += ((v ? v[0] : 0.15) - this.curl[S]) * base; const c = this.curl[S], open = Math.max(0, -c);
+      j['fing' + S].rotation.x = c * 0.2;
+      for (const f of j['kf' + S]) { f.prox.rotation.set((f.thumb ? 0.2 : 0.3) + c * (f.thumb ? 0.55 : 0.75), f.spread * open * 0.35, 0); f.mid.rotation.x = 0.35 + c * 0.9; }
+    }
     for (const [name, v] of Object.entries(T)) {
       const gj = j[name]; if (!gj || Array.isArray(gj)) continue;
-      const kk = LEGJ.has(name) ? (fall > 0.05 ? slowK : fast) : name.startsWith('tail') ? fast : base;
+      const kk = LEGJ.has(name) ? (fall > 0.05 || up >= 0 ? slowK : fast) : name.startsWith('tail') ? fast : base;
       gj.rotation.x += (v[0] - gj.rotation.x) * kk; gj.rotation.y += (v[1] - gj.rotation.y) * kk; gj.rotation.z += (v[2] - gj.rotation.z) * kk;
     }
     // secondary parts of the robot: pauldrons lift with the arms, thigh plates swing with the legs, fingertips follow the knuckles
@@ -389,7 +406,7 @@ export function think(me, opp, dt) {
   const A = me.ai; A.t -= dt; A.st += dt;
   const d = me.pos.distanceTo(opp.pos) - me.R - opp.R, oa = opp.act, on = oa && oa.name, op = oa ? oa.t / oa.m.dur : 0, ready = me.meter >= 100;
   if (A.t <= 0) { A.t = rnd(0.6, 1.6); A.strafe = Math.random() < 0.5 ? -1 : 1; A.mood = Math.random(); }
-  const go = (s) => { A.state = s; A.st = 0; A.circle = Math.random() < 0.5 ? -1 : 1; A.range = rnd(50, 110); A.len = rnd(2, 4); A.sup = null; };
+  const go = (s) => { A.state = s; A.st = 0; A.circle = Math.random() < 0.5 ? -1 : 1; A.range = rnd(50, 100); A.len = rnd(2, 3.5); A.sup = null; };
   me.block = false;
   if (!robot) {
     if (me.hp < me.maxHp * 0.35) me.rage = true;
@@ -418,17 +435,17 @@ export function think(me, opp, dt) {
       else if (d > 60 && Math.random() < dt * 0.35) me.start('charge');
       else if (d > 20 && d < 90 && Math.random() < dt * 0.2) me.start('acid');
       if (ready && A.st > 0.8) go('super');
-      else if (d < (robot ? 14 : 18)) { go('close'); A.len = rnd(4, 8); }
+      else if (d < (robot ? 14 : 18)) { go('close'); A.len = rnd(6, 12); }
       break;
     case 'close': {
       inp.move = d > 10 ? 0.6 : 0.1; inp.strafe = A.strafe * 0.4;
       if (robot) { if (!me.block && Math.random() < dt * 2.4) me.start(pick(['jab', 'jab', 'cross', 'upper', 'kick', 'cross'])); }
       else if (Math.random() < dt * (me.rage ? 3.2 : 2.4)) me.start(pick(['swipe', 'swipe', 'bite', 'tail', 'bite']));
       const hurt = robot && (me.stun > 0.5 || me.down > 0);   // the robot backs off when it is getting hurt; the kaiju just gets angrier
-      if (opp.down > 0.5 || d > 45 || A.st > A.len || (ready && A.st > 1.2) || (hurt && Math.random() < dt * 2)) {
+      if (opp.down > 0.5 || d > 45 || A.st > A.len || (ready && A.st > 1.2) || (hurt && Math.random() < dt * 0.7)) {
         const taunt = opp.down > 0.5 && !robot;
         go('apart'); if (ready) A.len = rnd(1, 2); A.taunt = taunt;
-        if (Math.random() < (robot ? 0.75 : 0.55)) A.retreat = robot ? 'backstep' : 'hop';
+        if (Math.random() < (robot ? 0.6 : 0.45)) A.retreat = robot ? 'backstep' : 'hop';
       }
       break; }
     case 'apart':

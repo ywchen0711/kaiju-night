@@ -74,6 +74,7 @@ h2 { font-size: clamp(40px, 7vw, 76px); }
 .btns button:active { background: rgba(210, 58, 42, .6); }
 @media (pointer: coarse) { #help { display: none; } #cds { bottom: auto; top: calc(7vh + 64px); } }
 
+#lang { position: fixed; right: 62px; top: calc(env(safe-area-inset-top, 0px) + 12px); width: 40px; height: 40px; border-radius: 50%; background: var(--glass); border: 1px solid rgba(255,255,255,.15); font: 600 13px 'Oswald', 'Noto Sans TC', sans-serif; z-index: 5; }
 #mute { position: fixed; right: 14px; top: calc(env(safe-area-inset-top, 0px) + 12px); width: 40px; height: 40px; border-radius: 50%; background: var(--glass); border: 1px solid rgba(255,255,255,.15); font-size: 17px; z-index: 5; }
 #nogl { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center; background: #030406; }
 @media (max-width: 560px) { #title { background: linear-gradient(0deg, rgba(0,0,0,.85) 0%, rgba(0,0,0,.4) 60%, transparent); padding-bottom: 28px; } .lede { font-size: 14px; } .modes button { padding: 10px 14px; } }
