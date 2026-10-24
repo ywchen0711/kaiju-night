@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>巨獸之夜 Kaiju Night</title>
+<meta name="description" content="雨夜的港口城市，一隻巨獸從海裡爬上岸，巨型機甲擋在牠面前。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Noto+Serif+TC:wght@700;900&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=1">
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+</head>
+<body>
+<div id="stage"></div>
+
+<section id="title">
+  <div class="tbox">
+    <p class="kicker">緊急警報 · 港灣區全面撤離</p>
+    <h1>巨獸之夜</h1>
+    <p class="en">KAIJU NIGHT</p>
+    <p class="lede">凌晨三點，暴雨。一隻第四級巨獸從海溝爬上港口。<br>城裡最後一台守望者 MK-IV 機甲，正走向海邊。</p>
+    <div class="modes">
+      <button data-mode="watch"><b>觀戰</b><span>電腦對戰，像新聞直播一樣切換鏡頭</span></button>
+      <button data-mode="robot"><b>駕駛機甲</b><span>操控守望者 MK-IV，把巨獸打回海裡</span></button>
+      <button data-mode="kaiju"><b>化身巨獸</b><span>操控深淵獸，摧毀這座城市</span></button>
+    </div>
+    <div class="row"><select id="quality" aria-label="畫質"></select><a href="/" class="home">← 回到遊戲場</a></div>
+  </div>
+</section>
+
+<section id="hud" hidden>
+  <div class="bars">
+    <div class="side r"><div class="nm">守望者 MK-IV <small>JAEGER</small></div><div class="bar"><i id="hpR"></i></div><div class="num" id="hpRt"></div></div>
+    <div id="clock">00:00</div>
+    <div class="side k"><div class="nm"><small>CATEGORY IV</small> 深淵獸</div><div class="bar"><i id="hpK"></i></div><div class="num" id="hpKt"></div></div>
+  </div>
+  <div id="feed"></div>
+  <div id="cds"></div>
+  <div id="help" hidden></div>
+</section>
+
+<div id="pads" hidden>
+  <div id="stick"><div id="knob"></div></div>
+  <div class="btns">
+    <button data-k="KeyJ"></button><button data-k="KeyK"></button><button data-k="KeyL"></button><button data-k="KeyI"></button>
+    <button data-k="KeyQ"></button><button data-k="KeyR"></button><button data-k="ShiftLeft"></button><button data-k="Space"></button>
+  </div>
+</div>
+
+<section id="end" hidden>
+  <div class="tbox">
+    <h2 id="endTitle"></h2><p id="endSub"></p><p id="endStats" class="stats"></p>
+    <div class="row"><button id="again">再打一場</button><button id="back">回標題</button></div>
+  </div>
+</section>
+
+<button id="mute" aria-label="聲音">🔊</button>
+<div id="nogl" hidden>你的瀏覽器不支援 WebGL，無法顯示 3D 畫面。</div>
+<script type="module" src="js/main.js?v=1"></script>
+</body>
+</html>
