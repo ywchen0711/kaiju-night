@@ -1,10 +1,26 @@
-// All sound is synthesized with WebAudio: rain and wind, thunder, the kaiju's roar and pain cries, layered impacts (a crack,
+// Impacts, footfalls, explosions, collapses, the plasma shot, thrusters and lightning are real recordings (Kenney's CC0
+// Impact Sounds and Sci-fi Sounds) layered and pitched down to giant scale offline (sfx/, see sfx/README.txt); they load
+// in the background and the synthesized versions below stand in until they arrive (or if a browser cannot decode them).
+// The rest is synthesized with WebAudio: rain and wind, thunder, the kaiju's roar and pain cries, layered impacts (a crack,
 // a body thump, ringing armour plate or a wet slap of hide, a ground rumble), footfalls with hydraulics, explosions, servos.
 // Sounds placed in the world (pass a position) are panned to where they are on screen, quieter, duller and a little later
 // the farther away they are, and wetter (more of the city's echo).
 let ctx = null, master = null, verb = null, noiseBuf = null, rainGain = null, droneGain = null, rainBands = [], weatherKind = 'rain', shaper = null;
 const rnd = (a, b) => a + Math.random() * (b - a);
 const L = { x: 0, y: 30, z: 260, rx: 1, rz: 0 };   // the listener (the camera) and its right-hand direction
+// the recordings: fetched as soon as the page loads, decoded once there is an audio context
+const SFX = {}, last = {}, raw = {};
+const sfxReady = fetch(new URL('../sfx/manifest.json', import.meta.url)).then((r) => r.json()).then((m) => Promise.all(Object.entries(m).flatMap(([name, n]) => Array.from({ length: n }, (_, i) =>
+  fetch(new URL(`../sfx/${name}_${i}.mp3`, import.meta.url)).then((r) => r.arrayBuffer()).then((b) => { (raw[name] = raw[name] || [])[i] = b; }))))).catch(() => {});
+function decodeAll() { sfxReady.then(() => { for (const [name, list] of Object.entries(raw)) list.forEach((b, i) => { if (!b) return; ctx.decodeAudioData(b.slice(0)).then((buf) => { (SFX[name] = SFX[name] || [])[i] = buf; }).catch(() => {}); }); }); }
+const has = (name) => SFX[name] && SFX[name].some(Boolean);
+// one of a sound's recordings (never the same one twice running), a little faster or slower each time
+function play(name, P, vol = 1, rate = 1, t0 = null, wet = 0.3) {
+  if (!ctx || !has(name)) return false;
+  const list = SFX[name].map((b, i) => [b, i]).filter(([b, i]) => b && (SFX[name].filter(Boolean).length < 2 || i !== last[name])), [buf, i] = list[Math.floor(Math.random() * list.length)]; last[name] = i;
+  const s = ctx.createBufferSource(); s.buffer = buf; s.playbackRate.value = rate * rnd(0.93, 1.07);
+  const g = ctx.createGain(); g.gain.value = vol; s.connect(g); out(g, wet, 1, P); s.start(t0 ?? now()); return true;
+}
 
 function makeNoise() { const len = ctx.sampleRate * 2, b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0); let last = 0; for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; last = (last + 0.02 * w) / 1.02; d[i] = w * 0.6 + last * 3; } return b; }
 function makeVerb() { const len = ctx.sampleRate * 3.2, b = ctx.createBuffer(2, len, ctx.sampleRate); for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6) * (i < ctx.sampleRate * 0.02 ? i / (ctx.sampleRate * 0.02) : 1); } const v = ctx.createConvolver(); v.buffer = b; return v; }
@@ -41,7 +57,7 @@ export const Audio = {
   start() {
     if (ctx) { ctx.resume(); return; }
     ctx = new (window.AudioContext || window.webkitAudioContext)();
-    noiseBuf = makeNoise(); master = ctx.createGain(); master.gain.value = 0.8;
+    noiseBuf = makeNoise(); master = ctx.createGain(); master.gain.value = 0.8; decodeAll();
     shaper = new Float32Array(512); for (let i = 0; i < 512; i++) { const x = i / 256 - 1; shaper[i] = Math.tanh(x * 3) / Math.tanh(3); }
     const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 5; comp.attack.value = 0.004; comp.release.value = 0.25; master.connect(comp); comp.connect(ctx.destination);
     verb = makeVerb(); const vg = ctx.createGain(); vg.gain.value = 0.6; verb.connect(vg); vg.connect(comp);
@@ -78,6 +94,11 @@ export const Audio = {
   // a giant footfall: the ground thumps and crunches; a splash in water; the robot's legs hiss and clank as the hydraulics take the weight
   step(power = 1, dist = 100, water = false, p = null, metal = false) {
     if (!ctx) return; const P = p ? place(p) : place(null), k = p ? power : Math.min(1, 160 / Math.max(40, dist)) * power, t = now();
+    if (play(metal ? 'step_bot' : weatherKind === 'snow' ? 'step_snow' : 'step', P, Math.min(1.4, 0.75 * k), 1, t, 0.35)) {
+      thump(P, 0.35 * k, 60, 24, 0.6, t, 0.2);
+      if (water) { const n = noise(0.8, 'lowpass', 1800), g2 = ctx.createGain(); n.fl.connect(g2); env(g2, 0.01, 0.5 * k, 0.9); out(g2, 0.4, 1, P); }
+      return;
+    }
     thump(P, 0.9 * k, 72, 26, 0.7, t, 0.3);
     const n = noise(0.8, 'lowpass', water ? 1800 : 380), g2 = ctx.createGain(); n.fl.connect(g2); env(g2, 0.01, (water ? 0.5 : 0.35) * k, water ? 0.9 : 0.5); out(g2, 0.4, 1, P);
     if (!water) { const c = noise(0.3, 'bandpass', 1400, 0.9), cg = ctx.createGain(); c.fl.connect(cg); env(cg, 0.004, 0.12 * k, 0.22); out(cg, 0.3, 1, P); }   // grit crushed under the foot
@@ -100,6 +121,14 @@ export const Audio = {
   // a blow landing. o: { p, power, metal (the one hit is armour), blocked, heavy, sharp (claws or a blade, not a fist) }
   impact(o) {
     if (!ctx) return; const P = place(o.p), t = now(), pw = Math.min(2, o.power || 1), heavy = !!o.heavy;
+    const name = o.blocked ? 'block' : o.metal ? (heavy ? 'metal_h' : 'metal_m') : (heavy ? 'flesh_h' : 'flesh_m');
+    if (play(name, P, Math.min(1.5, 0.55 + 0.45 * pw), heavy ? 0.92 : 1, t, 0.35)) {
+      // a second, quieter recording a beat later gives a big blow its body (the armour rings on, the hide shudders)
+      if (heavy && !o.blocked) play(o.metal ? 'metal_m' : 'flesh_m', P, 0.35 * pw, 0.8, t + 0.035, 0.4);
+      if (heavy) thump(P, 0.55 * pw, 52, 22, 0.9, t, 0.4);
+      if (o.sharp) { const s = noise(0.4, 'bandpass', o.metal ? 3800 : 2400, o.metal ? 5 : 2, t), sg = ctx.createGain(); s.fl.frequency.exponentialRampToValueAtTime(o.metal ? 1600 : 900, t + 0.35); s.fl.connect(sg); env(sg, 0.01, (o.metal ? 0.16 : 0.12) * pw, 0.35, t); out(sg, 0.4, 1, P); }
+      return;
+    }
     crack(P, (o.blocked ? 0.7 : 0.9) * pw, o.metal ? 3000 : 1800, o.sharp ? 0.05 : 0.025, t);
     // the body of the blow: deep for flesh, a harder knock for armour
     thump(P, (o.metal ? 0.75 : 1.0) * pw, o.metal ? 150 : 105, o.metal ? 48 : 30, heavy ? 0.6 : 0.38, t);
@@ -142,6 +171,7 @@ export const Audio = {
   },
   explosion(power = 1, dist = 100, p = null) {
     if (!ctx) return; const P = place(p), k = p ? Math.min(1.2, power) : Math.min(1.2, 200 / Math.max(50, dist)) * power, d = 3 + power;
+    if (play('explosion', P, Math.min(1.5, 0.8 * k + 0.2), power > 1.2 ? 0.85 : 1, null, 0.5)) { thump(P, 0.6 * k, 55, 20, 1.6, now(), 0.3); return; }
     crack(P, 0.8 * k, 1200, 0.06);
     const n = noise(d, 'lowpass', 2400), g = ctx.createGain(); n.fl.frequency.exponentialRampToValueAtTime(120, now() + d); n.fl.connect(g); env(g, 0.01, 1.1 * k, d); out(g, 0.7, 1, P);
     thump(P, 1 * k, 60, 22, 1.6, now(), 0.2);
@@ -149,9 +179,14 @@ export const Audio = {
   // a building falls: a long rumble with cracks
   collapse(dist = 100, p = null) {
     if (!ctx) return; const P = place(p), k = p ? 1 : Math.min(1, 220 / Math.max(60, dist)), d = rnd(4, 6);
-    const n = noise(d, 'lowpass', 500), g = ctx.createGain(); n.fl.connect(g); g.gain.setValueAtTime(0.0001, now()); g.gain.exponentialRampToValueAtTime(0.9 * k, now() + 0.5); g.gain.exponentialRampToValueAtTime(0.0001, now() + d); out(g, 0.6, 1, P);
+    const real = play('collapse', P, 1, rnd(0.8, 1), null, 0.6); if (real) setTimeout(() => play('collapse', P, 0.6, rnd(0.6, 0.75), null, 0.7), rnd(500, 1100));
+    const n = noise(d, 'lowpass', 500), g = ctx.createGain(); n.fl.connect(g); g.gain.setValueAtTime(0.0001, now()); g.gain.exponentialRampToValueAtTime((real ? 0.45 : 0.9) * k, now() + 0.5); g.gain.exponentialRampToValueAtTime(0.0001, now() + d); out(g, 0.6, 1, P);
     for (let i = 0; i < 8; i++) crack(P, 0.3 * k, rnd(1500, 3000), rnd(0.02, 0.06), now() + rnd(0, 2.5));
   },
+  // the plasma shot leaving the palm; thrusters firing; lightning striking the ground
+  plasma(p = null) { if (!play('plasma', place(p), 1, 1, null, 0.4)) this.zap(p); },
+  thrust(p = null, vol = 1) { if (!ctx) return; play('thrust', place(p), 0.8 * vol, rnd(0.9, 1.1), null, 0.3); },
+  strike(p = null) { if (!play('bolt', place(p), 1.2, 1, null, 0.6)) this.zap(p); },
   // plasma cannon: a rising charge whine, then a crack
   charge(p = null) { if (!ctx) return; const P = place(p), o = osc('sawtooth', 120, 1800, 0.95), g = ctx.createGain(); const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 3000; o.connect(f); f.connect(g); g.gain.setValueAtTime(0.0001, now()); g.gain.exponentialRampToValueAtTime(0.12, now() + 0.9); g.gain.exponentialRampToValueAtTime(0.0001, now() + 1.05); out(g, 0.4, 1, P); },
   zap(p = null) { if (!ctx) return; const P = place(p), n = noise(0.9, 'bandpass', 2500, 1.5), g = ctx.createGain(); n.fl.frequency.exponentialRampToValueAtTime(300, now() + 0.8); n.fl.connect(g); env(g, 0.003, 0.9, 0.8); out(g, 0.6, 1, P); const o = osc('square', 900, 60, 0.4), og = ctx.createGain(); o.connect(og); env(og, 0.003, 0.15, 0.45); out(og, 0.3, 1, P); },
@@ -160,5 +195,6 @@ export const Audio = {
   whoosh(p = null) { this.swing(0.6, p); },
   // a giant foot or body skidding over the street
   skid(power = 1, p = null) { if (!ctx) return; const P = place(p), n = noise(0.5, 'bandpass', 500, 0.8), g = ctx.createGain(); n.fl.connect(g); env(g, 0.04, 0.25 * power, 0.4); out(g, 0.3, 1, P); },
+  loaded() { return Object.values(SFX).reduce((n, l) => n + l.filter(Boolean).length, 0); },
   tension(k) { if (droneGain) droneGain.gain.setTargetAtTime(0.04 + k * 0.08, now(), 1); },
 };

@@ -8,7 +8,7 @@ import { buildWorld, SHORE, STAGE } from './world.js?v=4';
 import { ROBOTS, KAIJUS, STAGES, resolve } from './roster.js?v=1';
 import { makeFx } from './fx.js?v=7';
 import { Fighter, think } from './fighters.js?v=9';
-import { Audio } from './audio.js?v=4';
+import { Audio } from './audio.js?v=5';
 import { T, has, getLang, setLang, applyDom } from './i18n.js?v=5';
 applyDom();
 
@@ -161,7 +161,7 @@ function handleEvents(f, opp) {
         if (e.sig && f.v.id === 'voltra') { Audio.roar(2, 1.3, f.wp('head')); break; }
         if (e.name === 'beam') { Audio.charge(f.wp('head')); Audio.roar(1.4, 1.25, f.wp('head')); break; }
         if (e.name === 'quake') { Audio.roar(1.6, 0.9, f.wp('head')); break; }
-        if (f.kind === 'robot') { Audio.servo(f.wp('chest')); if (e.name === 'plasma' || e.super) Audio.charge(f.wp('chest')); }
+        if (f.kind === 'robot') { Audio.servo(f.wp('chest')); if (e.name === 'plasma' || e.super) Audio.charge(f.wp('chest')); if (['backstep', 'rocket', 'blade'].includes(e.name) || (e.sig && f.v.id !== 'striker')) setTimeout(() => Audio.thrust(f.wp('chest'), 0.9), 180); }
         else if (e.name === 'acid') Audio.hiss(f.moves.acid.dur * 0.55, f.wp('head'));
         else if (e.name === 'charge' || e.name === 'pounce') Audio.roar(0.9, 1.15, f.wp('head'), 0.7);
         break;
@@ -181,7 +181,7 @@ function handleEvents(f, opp) {
         if (heavy && !blocked) { slowmo(0.35, 0.35); director.impact(e.point, opp); }
         if (pilot && opp === pilot) hurt = Math.min(1, hurt + 0.5);
         break; }
-      case 'shoot': shots.push({ p: e.from.clone(), dir: e.dir, dmg: e.dmg, life: 2, from: f }); Audio.zap(); bigHit(e.from, 0.5); break;
+      case 'shoot': shots.push({ p: e.from.clone(), dir: e.dir, dmg: e.dmg, life: 2, from: f }); Audio.plasma(e.from); bigHit(e.from, 0.5); break;
       case 'breath': fx.acid(e.from, e.dir, f.v.breath); break;
       case 'missile': {
         const side = V(rnd(-1, 1), 0, rnd(-1, 1)).multiplyScalar(18);
@@ -214,7 +214,7 @@ function handleEvents(f, opp) {
         scene.add(line); bolts.push({ line, t: 0.45 });
         fx.sparks(p.clone().setY(1), 50, [0.8, 0.7, 1]); fx.glow.add({ x: p.x, y: 3, z: p.z, vx: 0, vy: 0, vz: 0, life: 0.4, size: 40, grow: 1, color: [0.7, 0.6, 1], alpha: 0.8 }); fx.dust(p.x, p.z, 0.8); fx.fire(p.x, p.z, 1, rnd(6, 12));
         hitLight.color.setHex(f.v.beam[2]); bigHit(p.clone().setY(20), 0.9); setTimeout(() => hitLight.color.setHex(0xffc080), 300);
-        flash = Math.max(flash, 0.3); Audio.zap(p); Audio.thunder(Math.max(0.6, d / 200)); shake = Math.max(shake, Math.min(1, 70 / d)); dangerAt(p, 11, 'blast'); break; }
+        flash = Math.max(flash, 0.3); Audio.strike(p); Audio.thunder(Math.max(0.6, d / 200)); shake = Math.max(shake, Math.min(1, 70 / d)); dangerAt(p, 11, 'blast'); break; }
       case 'swing': Audio.swing(e.power, e.p); break;
       case 'skid': { for (const p of e.ps) { if (e.water) fx.smoke.add({ x: p.x, y: 0, z: p.z, vx: rnd(-5, 5), vy: rnd(6, 14), vz: rnd(-5, 5), life: rnd(0.6, 1.2), size: rnd(4, 7), grow: 2, color: [0.5, 0.55, 0.6], alpha: 0.35, grav: 20, drag: 0.6 }); else { fx.dust(p.x, p.z, 0.3 * e.power, 0.5); if (f.kind === 'robot' && STAGE.id !== 'snow' && Math.random() < 0.5) fx.sparks(V(p.x, 0.5, p.z), 6); } }
         if ((f.skidSnd = (f.skidSnd || 0) - 1) < 0) { f.skidSnd = 2; Audio.skid(e.power, e.ps[0]); } break; }
@@ -412,7 +412,7 @@ const KAIJU_KEYS = { KeyJ: 'swipe', KeyK: 'bite', KeyL: 'tail', KeyI: 'charge', 
 function pressed(code) {
   const map = pilot === robot ? ROBOT_KEYS : KAIJU_KEYS;
   if (map[code]) pilot.start(map[code]);
-  if ((code === 'ShiftLeft' || code === 'ShiftRight') && pilot === robot && !(robot.cd.dash > 0) && robot.can()) { robot.dash = 0.45; robot.cd.dash = 2.5; Audio.whoosh(robot.wp('chest')); Audio.servo(robot.wp('chest')); }
+  if ((code === 'ShiftLeft' || code === 'ShiftRight') && pilot === robot && !(robot.cd.dash > 0) && robot.can()) { robot.dash = 0.45; robot.cd.dash = 2.5; Audio.thrust(robot.wp('chest')); Audio.servo(robot.wp('chest')); }
 }
 function pilotInput() {
   const i = { move: 0, strafe: 0 };
@@ -592,4 +592,4 @@ function sim(seconds, dt = 1 / 30) {
   }
   return { t: Math.round(t2), robot: Math.round(robot.hp), kaiju: Math.round(kaiju.hp), fallen: W.buildings.filter((b) => !b.alive && !b.pole).length };
 }
-window.KN = { sim, get robot() { return robot; }, get kaiju() { return kaiju; }, human, get mode() { return mode; }, begin, director, get W() { return W; }, fx, sel, setStage, newFight, renderer, toTitle, setSlow: slowmo };
+window.KN = { sim, Audio, get robot() { return robot; }, get kaiju() { return kaiju; }, human, get mode() { return mode; }, begin, director, get W() { return W; }, fx, sel, setStage, newFight, renderer, toTitle, setSlow: slowmo };

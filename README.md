@@ -45,13 +45,18 @@ A giant robot and a kaiju fight in a harbour city at night, in the rain: **https
   blow folds it over, a leg blow buckles that knee; hooks and claws from one side twist and tip the body away and turn it;
   the arms fly out, the head whips a beat after the body, the kaiju's jaw gapes and its tail lashes; heavier blows take
   longer to shake off. The one hit cries out: a ragged growl, or the robot's hydraulics straining and a damage alarm.
-- **Sound**: all synthesized with WebAudio. Impacts are layered: a crack, a deep body thump, then ringing armour plate (a
+- **Sound**: blows, footfalls, explosions, collapses, the plasma shot, thrusters and lightning are real recordings (Kenney's
+  CC0 Impact Sounds and Sci-fi Sounds), layered and pitched down to giant scale by tools/design_sfx.py into sfx/ (credits in
+  sfx/README.txt); a big blow stacks a second recording and a sub-bass thump. The synthesized versions remain as a fallback.
+  Synthesized with WebAudio: a crack, a deep body thump, then ringing armour plate (a
   dent crunch, claws scraping, bolts falling away) or a wet slap of hide (bone crunch on heavy blows), a ground rumble.
   Swings are heard as the limb moves; robot footfalls hiss and clank. Sounds in the world are panned to where they are,
   quieter, duller, later and more echoing the farther away they are. Also rain or wind, thunder, roars, explosions, collapse.
 - Controls: keyboard, touch (stick and buttons) or gamepad. Three quality presets.
 
 ```
+sfx/            recorded sound effects (CC0) and their credits
+tools/          design_sfx.py, which builds them
 js/roster.js    the jaegers, kaiju and stages: build, colours, stats
 js/i18n.js      Chinese and English texts
 js/world.js     the city, sky, rain, water, lights, helicopters, building collapse
