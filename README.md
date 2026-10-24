@@ -37,6 +37,11 @@ A giant robot and a kaiju fight in a harbour city at night, in the rain: **https
   punch, block, dash and plasma cannon against claw, two-handed rake, bite, headbutt, stomp, tail sweep, a running charge, acid
   breath, a low claws-first pounce, and roar. The kaiju fights with its body only, no projectiles besides its breath. Every fight starts from random positions. Buildings in the way collapse into dust and fire. The AI fights in phases (close in, trade blows,
   now and then break apart with a thruster backstep or a hop and circle at range, come back), so they are not always in a clinch. Knockdowns are rare, and getting up takes a while: roll up to a kneel, push up to standing.
+- **Fighting like a fight**: below a walking pace the feet stay planted in a stance (the jaeger side-on like a boxer, left
+  foot leading, with a light bounce; the kaiju wide and low, leaning in, claws up) and step one foot at a time when the body
+  has moved or turned away from them. Punches turn from the hips while the legs hold. The AI throws combinations (two or three
+  blows flowing into each other), steps back out after them, guards, slips blows to either side or sways back out of reach
+  (a slipped blow misses), and counters off a slip.
 - **Weight**: every joint above the hips moves on a damped spring, so limbs carry through and settle; each footfall sinks the
   body and nods the head a beat later, the upper body lags behind changes of speed, the tail lifts as a counterweight, and the
   legs always step at the body's real ground speed (lunges, the charge and being knocked back all walk). Moves play a little

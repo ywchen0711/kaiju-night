@@ -5,9 +5,9 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { buildWorld, SHORE, STAGE } from './world.js?v=4';
-import { ROBOTS, KAIJUS, STAGES, resolve } from './roster.js?v=2';
+import { ROBOTS, KAIJUS, STAGES, resolve } from './roster.js?v=3';
 import { makeFx } from './fx.js?v=7';
-import { Fighter, think } from './fighters.js?v=10';
+import { Fighter, think } from './fighters.js?v=11';
 import { Audio } from './audio.js?v=6';
 import { T, has, getLang, setLang, applyDom } from './i18n.js?v=6';
 applyDom();
@@ -223,6 +223,8 @@ function handleEvents(f, opp) {
         hitLight.color.setHex(f.v.beam[2]); bigHit(p.clone().setY(20), 0.9); setTimeout(() => hitLight.color.setHex(0xffc080), 300);
         flash = Math.max(flash, 0.3); Audio.strike(p); Audio.thunder(Math.max(0.6, d / 200)); shake = Math.max(shake, Math.min(1, 70 / d)); dangerAt(p, 11, 'blast'); break; }
       case 'swing': Audio.swing(e.power, e.p); break;
+      // a blow slipped: it cuts through the air where the head was
+      case 'whiff': Audio.swing(1.3, e.p); break;
       // the ape's chest beaten like a drum
       case 'beat': Audio.impact({ p: e.p, power: 0.75, metal: false }); fx.punch(e.p, 0.5); shake = Math.max(shake, Math.min(0.5, 50 / camDist(e.p))); break;
       // a gale off the wings: dust and spray driven forward along the ground
