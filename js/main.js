@@ -4,10 +4,10 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { buildWorld, SHORE } from './world.js?v=1';
-import { makeFx } from './fx.js?v=1';
-import { Fighter, think } from './fighters.js?v=1';
-import { Audio } from './audio.js?v=1';
+import { buildWorld, SHORE } from './world.js?v=2';
+import { makeFx } from './fx.js?v=2';
+import { Fighter, think } from './fighters.js?v=2';
+import { Audio } from './audio.js?v=2';
 
 const $ = (s) => document.querySelector(s);
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -124,6 +124,8 @@ function handleEvents(f, opp) {
         break; }
       case 'shoot': shots.push({ p: e.from.clone(), dir: e.dir, dmg: e.dmg, life: 2, from: f }); Audio.zap(); bigHit(e.from, 0.5); break;
       case 'breath': fx.acid(e.from, e.dir); break;
+      case 'breathe': for (const p of e.ps) for (let i = 0; i < 5; i++) fx.smoke.add({ x: p.x, y: p.y, z: p.z, vx: e.dir.x * rnd(5, 9) + rnd(-1, 1), vy: e.dir.y * rnd(5, 9) + rnd(-0.5, 1), vz: e.dir.z * rnd(5, 9) + rnd(-1, 1), life: rnd(1.6, 2.6), size: rnd(1.5, 3), grow: 3.5, color: [0.42, 0.45, 0.48], alpha: 0.16, drag: 1.2, fadeIn: 0.2 }); break;
+      case 'vent': for (const p of e.ps) for (let i = 0; i < 16; i++) fx.smoke.add({ x: p.x + rnd(-1, 1), y: p.y, z: p.z + rnd(-1, 1), vx: e.up.x * rnd(8, 18) + rnd(-2, 2), vy: e.up.y * rnd(10, 22), vz: e.up.z * rnd(8, 18) + rnd(-2, 2), life: rnd(2, 3.5), size: rnd(2.5, 5), grow: 4, color: [0.55, 0.58, 0.62], alpha: 0.28, drag: 1, fadeIn: 0.1 }); if (camDist(e.ps[0]) < 160) Audio.hiss && Audio.whoosh(); break;
       case 'burn': if (Math.random() < 0.3) fx.sparks(e.point.clone().add(V(rnd(-8, 8), rnd(-10, 10), rnd(-8, 8))), 6, [0.4, 0.9, 1]); if (pilot === opp) hurt = Math.min(0.7, hurt + 0.02); break;
       case 'roar': Audio.roar(2.4); shake = Math.max(shake, 0.6); director.roar(f); break;
       case 'step': {
@@ -135,7 +137,7 @@ function handleEvents(f, opp) {
         if (b.pole) { fx.sparks(V(b.x, 9, b.z), 25); }
         else { fx.collapse(b); Audio.collapse(d); shake = Math.max(shake, Math.min(1, 80 / d)); if (b.h > 60) director.collapse(b); }
         break; }
-      case 'death': slowmo(0.3, 2.2); Audio.explosion(1.5, camDist(f.pos)); if (f.kind === 'kaiju') Audio.roar(3.5, 0.75); else { fx.explosion(f.wp('chest', [0, 8, 6]), 1.5); } director.death(f); break;
+      case 'death': slowmo(0.3, 2.2); Audio.explosion(1.5, camDist(f.pos)); if (f.kind === 'kaiju') Audio.roar(3.5, 0.75); else { fx.explosion(f.wp('chest', [0, 10, 9]), 1.5); } director.death(f); break;
     }
   }
   f.events.length = 0;
@@ -186,7 +188,7 @@ const director = {
       case 'orbit': { const ang = this.seed * 6.28 + t * 0.22 * this.side; pos = m.clone().add(V(Math.cos(ang) * 120, 35, Math.sin(ang) * 120)); look = m.clone().setY(45); break; }
       case 'waterline': { if (!this.base) this.base = V(K.x + this.side * 90, 2.5, SHORE + 30); pos = this.base; look = K.clone().setY(40); fov = 44; break; }
       case 'close': { const w = this.who || kaiju; pos = this.focus.clone().addScaledVector(side, 60).add(V(0, 6, 0)).addScaledVector(a, -10); look = this.focus; fov = 30; break; }
-      case 'face': { const w = this.who, hp = w.wp('head', [0, 0, 10]), f = w.face(); pos = hp.clone().addScaledVector(f, 55).addScaledVector(side, 20).add(V(0, -14, 0)); look = hp; fov = 34; break; }
+      case 'face': { const w = this.who, hp = w.wp('head', [0, 0, 10]), f = w.face(); const sd = V(f.z, 0, -f.x).multiplyScalar(this.side); pos = hp.clone().addScaledVector(f, 26).addScaledVector(sd, 48).add(V(0, -16, 0)); look = hp; fov = 32; break; }
       case 'ruin': pos = this.focus.clone().addScaledVector(side, 110).add(V(0, 8, 0)); look = this.focus.clone().setY(25); fov = 40; break;
       case 'title': pos = V(52 - t * 0.6, 2.2, 160); look = V(-85, 48, 0); fov = 50; break;
       case 'death': { const w = this.who; pos = w.pos.clone().addScaledVector(side, 120 - t * 6).add(V(0, 20 + t * 4, 0)); look = w.pos.clone().setY(20); fov = 36; break; }
