@@ -38,15 +38,31 @@ h2 { font-size: clamp(40px, 7vw, 76px); }
 .r .bar i { background: linear-gradient(90deg, #2a7fae, var(--cyan)); box-shadow: 0 0 10px var(--cyan); }
 .k .bar { transform: scaleX(-1); }
 .k .bar i { background: linear-gradient(90deg, #8a1c12, #ff5a36); box-shadow: 0 0 10px #ff5a36; }
+/* the power meter under each health bar; it pulses when a special move is ready */
+.mt { height: 3px; margin-top: 3px; background: rgba(0,0,0,.5); overflow: hidden; }
+.mt i { display: block; height: 100%; background: var(--amber); transition: width .25s; }
+.k .mt { transform: scaleX(-1); }
+.mt.full i { background: #fff3c4; box-shadow: 0 0 10px var(--amber); animation: pulse .6s ease-in-out infinite alternate; }
+@keyframes pulse { to { opacity: .45; } }
 .num { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; margin-top: 2px; }
 #clock { font-size: 22px; letter-spacing: .1em; font-variant-numeric: tabular-nums; text-shadow: 0 1px 4px #000; padding-bottom: 6px; }
 #feed { position: absolute; left: clamp(16px, 4vw, 48px); bottom: calc(7vh + 18px); font-size: 13px; letter-spacing: .18em; color: #fff; text-shadow: 0 1px 3px #000; opacity: .85; }
 #feed:empty { display: none; }
+/* the special move's name, slammed across the screen */
+#banner { position: absolute; left: 0; right: 0; top: 38%; display: flex; flex-direction: column; align-items: center; gap: 2px; animation: slam 2.6s ease-out both; text-shadow: 0 2px 18px rgba(0,0,0,.9); }
+#banner small { font: 600 13px 'Oswald', 'Noto Sans TC', sans-serif; letter-spacing: .4em; color: var(--dim); }
+#banner b { font: 900 clamp(34px, 7vw, 72px)/1.1 'Noto Serif TC', serif; letter-spacing: .12em; }
+#banner.robot b { color: #dff6ff; text-shadow: 0 0 24px var(--cyan), 0 2px 18px #000; }
+#banner.kaiju b { color: #e8fbff; text-shadow: 0 0 28px #3ad8ff, 0 0 60px #1a6aff, 0 2px 18px #000; }
+@keyframes slam { 0% { opacity: 0; transform: scale(1.6); letter-spacing: .5em; } 8% { opacity: 1; transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: scale(.98); } }
 #cds { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 54px); display: flex; gap: 8px; }
 .cd { position: relative; min-width: 92px; padding: 4px 10px; font-size: 12px; letter-spacing: .1em; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.12); overflow: hidden; color: var(--dim); text-align: center; }
 .cd i { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--dim); }
 .cd.ready { color: var(--ink); border-color: rgba(92, 210, 255, .6); }
 .cd.ready i { background: var(--cyan); }
+.cd.sup i { background: var(--amber); }
+.cd.sup.ready { border-color: var(--amber); color: #fff3c4; }
+.btns button.sup { border-color: var(--amber); }
 #help { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); width: max-content; max-width: calc(100% - 32px); text-align: center; font: 12px 'Noto Sans TC', sans-serif; color: var(--dim); text-shadow: 0 1px 3px #000; }
 #help b { color: var(--ink); font-weight: 700; }
 

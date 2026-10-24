@@ -6,6 +6,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const rnd = (a, b) => a + Math.random() * (b - a);
+const qd = (dir) => new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
 const sstep = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
 function cnv(w, h = w) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
 function tex(c, srgb, rx = 1, ry = rx) { const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); t.anisotropy = 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; }
@@ -76,6 +77,11 @@ function kaijuMats() {
     mouth: new THREE.MeshStandardMaterial({ color: 0x2a0a0e, emissive: 0x3ad8ff, emissiveIntensity: 0, roughness: 0.5 }),
     eye: new THREE.MeshStandardMaterial({ color: 0x1a0800, emissive: 0xffa040, emissiveIntensity: 1.6, roughness: 0.2 }),
     dark: new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.8 }),
+    // the belly: paler, smoother scutes
+    belly: new THREE.MeshPhysicalMaterial({ map: S.map, normalMap: S.normal, normalScale: new THREE.Vector2(1.1, 1.1), roughnessMap: S.rough, roughness: 0.9, color: 0x8a8476, clearcoat: 0.4, clearcoatRoughness: 0.45 }),
+    // old wounds and gill slits that glow with the same light as the plates (brighter as it gets hurt)
+    scar: new THREE.MeshStandardMaterial({ color: 0x06141a, emissive: 0x3ad8ff, emissiveIntensity: 0.4, roughness: 0.5 }),
+    flesh: new THREE.MeshStandardMaterial({ color: 0x4a1418, roughness: 0.4 }),
   };
 }
 
@@ -163,14 +169,15 @@ export function buildKaiju() {
   const M = kaijuMats(), j = {}, bones = [], root = new THREE.Group(), tmpRig = new THREE.Group(); root.add(tmpRig);
   const B = (parent, name, x, y, z) => { const b = new THREE.Bone(); b.name = name; b.position.set(x, y, z); (parent || tmpRig).add(b); j[name] = b; bones.push(b); return b; };
   // skeleton: an upright, forward-leaning body over massive legs, a long heavy tail as counterweight
-  const pelvis = B(null, 'pelvis', 0, 40, -6), spine = B(pelvis, 'spine', 0, 9, 5), chest = B(spine, 'chest', 0, 11, 6), neck = B(chest, 'neck', 0, 9, 6), head = B(neck, 'head', 0, 7, 7);
+  const pelvis = B(null, 'pelvis', 0, 40, -6), spine = B(pelvis, 'spine', 0, 9, 5), chest = B(spine, 'chest', 0, 11, 6), neck0 = B(chest, 'neck0', 0, 4.5, 3), neck = B(neck0, 'neck', 0, 4.5, 3), head = B(neck, 'head', 0, 7, 7);
   B(head, 'jaw', 0, -3, 1);
   j.tail = []; let tp = pelvis;
   const TO = [[-2, -11], [-4.5, -9], [-4.5, -9], [-4.5, -9], [-4.5, -9], [-4.5, -9], [-4, -9], [-3, -8.5], [-2, -8], [-1.5, -8], [-1, -7.5], [-0.5, -7]];
   TO.forEach(([dy, dz], i) => { tp = B(tp, 'tail' + i, 0, dy, dz); j.tail.push(tp); });
   for (const [s, S] of [[-1, 'L'], [1, 'R']]) {
-    const hip = B(pelvis, 'hip' + S, s * 11, -4, 1), knee = B(hip, 'knee' + S, 0, -18, 7); B(knee, 'ankle' + S, 0, -15, -6);
-    const sh = B(chest, 'sh' + S, s * 12, -1, 5), el = B(sh, 'el' + S, s * 1, -11, 4); B(el, 'hand' + S, 0, -8, 6);
+    // toes bend at the ball of the foot; the claws of each hand curl and spread on their own joint
+    const hip = B(pelvis, 'hip' + S, s * 11, -4, 1), knee = B(hip, 'knee' + S, 0, -18, 7), an = B(knee, 'ankle' + S, 0, -15, -6); B(an, 'toe' + S, 0, -2, 5.5);
+    const sh = B(chest, 'sh' + S, s * 12, -1, 5), el = B(sh, 'el' + S, s * 1, -11, 4), hn = B(el, 'hand' + S, 0, -8, 6); B(hn, 'fing' + S, 0, -1.2, 2.8);
   }
   root.updateMatrixWorld(true);
   const W = (name) => j[name].getWorldPosition(V()), bi = Object.fromEntries(bones.map((b, i) => [b.name, i]));
@@ -183,7 +190,7 @@ export function buildKaiju() {
     { p: W('pelvis'), rx: 15.5, ry: 15.5, bone: 'pelvis', ridge: 0.06, belly: 0.86 },
     { p: W('spine'), rx: 16.5, ry: 15.5, bone: 'spine', ridge: 0.05, belly: 0.88 },
     { p: W('chest'), rx: 14.5, ry: 13, bone: 'chest', ridge: 0.05, belly: 0.9 },
-    { p: W('chest').add(V(0, 5, 3.5)), rx: 11, ry: 10, bone: 'chest', ridge: 0.06 },
+    { p: W('neck0'), rx: 11, ry: 10, bone: 'neck0', ridge: 0.06 },
     { p: W('neck'), rx: 8.4, ry: 8.4, bone: 'neck', ridge: 0.08 },
     { p: W('head'), rx: 6.3, ry: 6.0, bone: 'head', ridge: 0.1, belly: 0.8 },
     { p: hd(0, -1.4, 7.5), rx: 4.7, ry: 3.9, bone: 'head', ridge: 0.08, belly: 0.72 },
@@ -203,8 +210,9 @@ export function buildKaiju() {
       { p: knee.clone().lerp(an, 0.5), rx: 5.1, ry: 5.5, bone: 'knee' + S },
       { p: an, rx: 4.4, ry: 4.6, bone: 'ankle' + S },
       { p: an.clone().add(V(0, -1.6, 4)), rx: 5.2, ry: 2.9, bone: 'ankle' + S },
-      { p: an.clone().add(V(0, -2.2, 8.5)), rx: 4.7, ry: 1.9, bone: 'ankle' + S },
-      { p: an.clone().add(V(0, -2.3, 10)), rx: 1, ry: 0.8, bone: 'ankle' + S },
+      { p: an.clone().add(V(0, -2, 6.2)), rx: 5.1, ry: 2.4, bone: 'toe' + S },
+      { p: an.clone().add(V(0, -2.2, 8.5)), rx: 4.7, ry: 1.9, bone: 'toe' + S },
+      { p: an.clone().add(V(0, -2.3, 10)), rx: 1, ry: 0.8, bone: 'toe' + S },
     ], { bones: bi, seg: 26, up: V(0, 0, 1), uRep: 3, tile: 22, belly: 1, noise: 0.06 }).geo);
     const sh = W('sh' + S), el = W('el' + S), hand = W('hand' + S);
     geos.push(loft([
@@ -214,8 +222,8 @@ export function buildKaiju() {
       { p: el, rx: 3.4, ry: 3.5, bone: 'el' + S },
       { p: el.clone().lerp(hand, 0.5), rx: 3.0, ry: 3.1, bone: 'el' + S },
       { p: hand, rx: 2.7, ry: 2.4, bone: 'hand' + S },
-      { p: hand.clone().add(V(0, -1.4, 3.3)), rx: 2.2, ry: 1.3, bone: 'hand' + S },
-      { p: hand.clone().add(V(0, -1.8, 4.6)), rx: 0.4, ry: 0.4, bone: 'hand' + S },
+      { p: hand.clone().add(V(0, -1.4, 3.3)), rx: 2.2, ry: 1.3, bone: 'fing' + S },
+      { p: hand.clone().add(V(0, -1.8, 4.6)), rx: 0.4, ry: 0.4, bone: 'fing' + S },
     ], { bones: bi, seg: 20, up: V(0, 0, 1), uRep: 2, tile: 16, belly: 1, noise: 0.05 }).geo);
   }
   const mesh = new THREE.SkinnedMesh(mergeGeometries(geos), M.skin);
@@ -265,13 +273,56 @@ export function buildKaiju() {
   // claws on hands and feet, a spur at the heel
   for (const [s, S] of [[-1, 'L'], [1, 'R']]) {
     const an = W('ankle' + S), hand = W('hand' + S), fwd = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2 + 0.25, 0, 0));
-    for (let k = -1; k <= 1; k++) att('ankle' + S, new THREE.ConeGeometry(0.75, 3.4, 6), M.claw, an.clone().add(V(k * 2.9, -2.6, 10.6 - Math.abs(k) * 0.8)), fwd);
+    for (let k = -1; k <= 1; k++) att('toe' + S, new THREE.ConeGeometry(0.75, 3.4, 6), M.claw, an.clone().add(V(k * 2.9, -2.6, 10.6 - Math.abs(k) * 0.8)), fwd);
     att('ankle' + S, new THREE.ConeGeometry(0.8, 3, 6), M.claw, an.clone().add(V(0, -2.2, -3.5)), new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2 - 0.3, 0, 0)));
-    for (let k = -1; k <= 1; k++) att('hand' + S, new THREE.ConeGeometry(0.4, 2.6, 6), M.claw, hand.clone().add(V(k * 1.3, -2.2, 5)), new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2 + 0.6, 0, 0)));
+    for (let k = -1; k <= 1; k++) att('fing' + S, new THREE.ConeGeometry(0.4, 2.6, 6), M.claw, hand.clone().add(V(k * 1.3, -2.2, 5)), new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2 + 0.6, 0, 0)));
+    // a thumb claw on the inside of the wrist
+    att('hand' + S, new THREE.ConeGeometry(0.42, 2.2, 6), M.claw, hand.clone().add(V(-s * 2.2, -0.6, 2.4)), qd(V(-s * 0.6, -0.5, 0.8)));
   }
+
+  // ---- extra detail: belly scutes, bony spikes, horns, gills, old glowing wounds, a tongue
+  const ring = (r, a) => r.B.clone().multiplyScalar(Math.cos(a) * r.rx).addScaledVector(r.N, Math.sin(a) * r.ry * (Math.sin(a) < 0 ? r.belly : 1 + r.ridge));
+  const onSkin = (r, a, geo, mat, scale, k = 0.97, spin = 0) => {
+    const off = ring(r, a), Y = off.clone().normalize(), X = r.T.clone().addScaledVector(Y, -r.T.dot(Y)).normalize().applyAxisAngle(Y, spin), Z = V().crossVectors(X, Y);
+    return att(r.bone, geo, mat, r.P.clone().addScaledVector(off, k), new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z)), scale);
+  };
+  // belly scutes: a column of overlapping plates from the groin up the throat
+  const scute = lumpy(1, 1, 1, 0.07, 14);
+  const b0 = body.rings.find((r) => r.i >= 12).s, b1 = body.rings.find((r) => r.i >= 18).s;
+  for (let s = b0; s <= b1; s += 2.6) { const r = ringAt(s); onSkin(r, -Math.PI / 2, scute, M.belly, V(1.9, 0.42, r.rx * 0.5), 0.94); }
+  // old wounds on the chest and flanks
+  const scars = [], sc0 = body.rings.find((q) => q.i >= 13).s, sc1 = body.rings.find((q) => q.i >= 16).s;
+  for (let n = 0; n < 7; n++) { const r = ringAt(rnd(sc0, sc1)), side = Math.random() < 0.5 ? -1 : 1; scars.push(onSkin(r, -Math.PI / 2 + side * rnd(0.5, 1.3), lumpy(1, 1, 1, 0.2, 10), M.scar, V(rnd(2.5, 4.5), 0.35, 0.32), 1.0, rnd(-0.9, 0.9))); }
+  // spikes along the sides of the tail and a spiked tip
+  const spike = new THREE.ConeGeometry(0.7, 3, 6), tip = new THREE.ConeGeometry(0.5, 3.6, 5);
+  for (let i = 1; i <= 10; i++) for (const s of [-1, 1]) {
+    const m = W('tail' + i).lerp(W('tail' + (i + 1)), 0.5), r = tailR[i] * 0.95;
+    att('tail' + i, spike, M.claw, m.add(V(s * r, r * 0.25, 0)), qd(V(s, 0.25, -0.9)), V(1, 0.5 + 0.06 * (11 - i), 1));
+  }
+  for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2; att('tail11', tip, M.claw, W('tail11').add(V(Math.cos(a) * 1.3, Math.sin(a) * 1.3 + 0.6, -4)), qd(V(Math.cos(a) * 0.7, Math.sin(a) * 0.7 + 0.2, -1))); }
+  for (const [s, S] of [[-1, 'L'], [1, 'R']]) {
+    const hip = W('hip' + S), knee = W('knee' + S), sh = W('sh' + S), el = W('el' + S), hand = W('hand' + S);
+    // bony knobs down the outside of the thigh, a spur on the knee
+    for (let k = 0; k < 4; k++) { const t = 0.1 + k * 0.2; att('hip' + S, spike, M.claw, hip.clone().lerp(knee, t).add(V(s * (9.4 - t * 3.6), 1 - k * 0.3, -1.5)), qd(V(s, 0.3, -0.4)), V(1.1, 0.55, 1.1)); }
+    att('knee' + S, new THREE.ConeGeometry(1.1, 3.4, 6), M.claw, knee.clone().add(V(0, 0.4, 5)), qd(V(0, 0.45, 1)));
+    // a ridge of spikes down the back of the forearm, a spur at the elbow, a hump of muscle on the shoulder
+    for (let k = 0; k < 3; k++) att('el' + S, spike, M.claw, el.clone().lerp(hand, 0.2 + k * 0.28).add(V(s * 1.6, 0, -2.6)), qd(V(s * 0.5, 0.3, -1)), V(0.7, 0.55, 0.7));
+    att('el' + S, new THREE.ConeGeometry(0.9, 3.4, 6), M.claw, el.clone().add(V(s * 0.5, 0, -3.1)), qd(V(s * 0.3, -0.4, -1)));
+    att('sh' + S, lumpy(3.2, 2.2, 3.6, 0.15), M.skin, sh.clone().add(V(s * 1.5, 3, -1)));
+    // horns swept back from the skull, knobs above the eyes
+    att('head', new THREE.ConeGeometry(1.1, 7, 7), M.claw, hd(s * 3.4, 4.4, -1.6), qd(V(s * 0.35, 0.55, -1)));
+    att('head', new THREE.ConeGeometry(0.7, 4, 6), M.claw, hd(s * 4.8, 2.6, -3), qd(V(s * 0.6, 0.3, -1)));
+    for (let k = 0; k < 3; k++) att('head', new THREE.ConeGeometry(0.4, 1.3, 5), M.claw, hd(s * (3.2 - k * 0.9), 3.9 - k * 0.15, 5.2 + k * 0.9), qd(V(s * 0.2, 1, 0.2)));
+    // gill slits on the neck that pulse with the plates
+    for (let k = 0; k < 3; k++) scars.push(att('neck', lumpy(1, 1, 1, 0.1, 10), M.scar, W('neck').add(V(s * 7.9, -1.8 + k * 1.9, -1.4 - k * 0.5)), new THREE.Quaternion().setFromEuler(new THREE.Euler(0.35, 0, 0)), V(0.25, 1.9, 0.45)));
+    // spikes under the chin
+    for (let k = 0; k < 3; k++) att('jaw', new THREE.ConeGeometry(0.45, 2, 5), M.claw, jw.clone().add(V(s * (2.6 - k * 0.5), -1.6, 3 + k * 2.4)), qd(V(s * 0.3, -1, -0.5)));
+  }
+  att('head', lumpy(1.4, 0.9, 2.6, 0.15), M.skin, hd(0, -0.2, 11.6));
+  att('jaw', lumpy(1.7, 0.55, 4.6, 0.08), M.flesh, jw.clone().add(V(0, 1, 6.5)));
   const eyeLight = new THREE.PointLight(0xff8a30, 50, 16, 2); eyeLight.position.copy(hd(0, 2, 9).sub(W('head'))); j.head.add(eyeLight);
   const mouthLight = new THREE.PointLight(0x3ad8ff, 0, 70, 2); mouthLight.position.copy(hd(0, -3, 17).sub(W('head'))); j.head.add(mouthLight);
-  return { root, j, mats: M, plates, bands, mouthLight, hq };
+  return { root, j, mats: M, plates, bands, scars, mouthLight, hq };
 }
 
 // ------------------------------------------------------------------ robot surfaces: weathered painted steel, panel seams, rivets, rust and rain streaks
@@ -325,6 +376,11 @@ function robotMats() {
     glow: new THREE.MeshStandardMaterial({ color: 0x0a2030, emissive: 0x6fd8ff, emissiveIntensity: 1.3 }),
     amber: new THREE.MeshStandardMaterial({ color: 0x301a00, emissive: 0xffa040, emissiveIntensity: 3 }),
     red: new THREE.MeshStandardMaterial({ color: 0x300000, emissive: 0xff2010, emissiveIntensity: 4 }),
+    // the fold-out plasma blade, the thruster nozzles, rubber hoses
+    blade: new THREE.MeshStandardMaterial({ color: 0xd8e4ee, metalness: 1, roughness: 0.12, envMapIntensity: 2, emissive: 0x4ab8ff, emissiveIntensity: 0 }),
+    edge: new THREE.MeshStandardMaterial({ color: 0x0a2030, emissive: 0x9fe8ff, emissiveIntensity: 0 }),
+    thrust: new THREE.MeshStandardMaterial({ color: 0x1a0c04, emissive: 0xff8a30, emissiveIntensity: 0.2 }),
+    hose: new THREE.MeshStandardMaterial({ color: 0x111214, roughness: 0.6, metalness: 0.2 }),
     decal: new THREE.MeshStandardMaterial({ map: tex(dc, true), transparent: true, roughness: 0.6, metalness: 0.1, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }),
   };
 }
@@ -363,12 +419,19 @@ export function buildRobot() {
   put(pelvis, plate(9, 1.2, 0.8, 0.2), M.hazard, 0, 1.4, 8.4, -0.12);
   for (const s of [-1, 1]) { put(pelvis, plate(3, 11, 11), M.armor2, s * 10, -3.4, 0, 0, 0, s * 0.2); put(pelvis, plate(1, 9, 9), M.armor, s * 11.6, -3.8, 0, 0, 0, s * 0.2); }
   put(pelvis, trap(12, 15, 7, 3), M.armor2, 0, -1.5, -6.6, 0.15);
+  for (const [s, S] of [[-1, 'L'], [1, 'R']]) {
+    const sk = J(pelvis, s * 9, -0.5, 8.8, 'skirt' + S, j);
+    put(sk, trap(6.4, 7.6, 10, 1.4, 1.2), M.armor, 0, -5, 0, -0.06);
+    put(sk, plate(5.6, 0.7, 0.5, 0.15), M.hazard, 0, -9.4, 0.8);
+    put(sk, cyl(0.5, 1.2), M.piston, 0, 0, -0.3, 0, 0, Math.PI / 2);
+  }
   // the abdomen: an exposed mechanical spine with pistons
   const spine = J(pelvis, 0, 4, 0, 'spine', j);
   put(spine, cyl(2.6, 10), M.frame, 0, 4, -1.5);
   for (let k = 0; k < 4; k++) put(spine, cyl(5.4 - (k % 2) * 0.8, 1.1, 22), M.frame, 0, 0.9 + k * 2.2, -1);
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) { put(spine, cyl(0.55, 9), M.piston, sx * 5.6, 4.2, sz * 3.4); put(spine, cyl(0.95, 4.2), M.frame, sx * 5.6, 1.6, sz * 3.4); }
   for (let k = 0; k < 3; k++) put(spine, plate(9 - k * 0.6, 2.2, 2.6, 0.6), M.armor, 0, 1.4 + k * 2.5, 5.2, -0.08);
+  for (const s of [-1, 1]) for (const [z, bow] of [[-3.5, 2.2], [3, 1.6]]) put(spine, new THREE.TubeGeometry(new THREE.CatmullRomCurve3([V(s * 2.6, -0.5, z), V(s * (4.8 + bow), 4, z * 1.25), V(s * 2.8, 8.6, z)]), 14, 0.45, 6), M.hose);
   // the chest: a broad armoured hull with the reactor turbine at its heart
   const chest = J(spine, 0, 8, 0, 'chest', j);
   put(chest, trap(22, 32, 20, 16, 4), M.armor, 0, 10, 0);
@@ -386,6 +449,28 @@ export function buildRobot() {
   put(chest, trap(18, 26, 14, 3, 3), M.armor, 0, 12, -8.6);
   for (const s of [-1, 1]) { put(chest, plate(5.5, 17, 6), M.frame, s * 7.5, 14, -10.6); for (let k = 0; k < 5; k++) put(chest, plate(7, 0.6, 7.4, 0.15), M.armor2, s * 7.5, 7.5 + k * 3.2, -10.6); lit(put(chest, plate(2.4, 13, 0.4, 0.1), M.amber, s * 7.5, 14, -13.8)); }
   j.vents = [V(-7.5, 23.5, -10.6), V(7.5, 23.5, -10.6)];
+  // missile pods on top of the hull: the lids hinge open at the front, six warheads under each
+  j.pods = []; j.podMuzzles = [];
+  const tipG = new THREE.ConeGeometry(0.75, 1.2, 8);
+  for (const [s, S] of [[-1, 'L'], [1, 'R']]) {
+    put(chest, plate(7.4, 3.2, 9.6, 0.8), M.frame, s * 9.2, 23.4, -2.2);
+    put(chest, plate(7.8, 0.6, 0.5, 0.15), M.hazard, s * 9.2, 22.6, 2.75);
+    for (let c = 0; c < 3; c++) for (let r = 0; r < 2; r++) { const x = s * 9.2 + (c - 1) * 2.3, z = -2.2 + (r - 0.5) * 4; lit(put(chest, tipG, M.red, x, 25, z)); j.podMuzzles.push(V(x, 26.4, z)); }
+    const lid = J(chest, s * 9.2, 25.7, 2.6, 'pod' + S, j);
+    put(lid, plate(7.8, 0.9, 9.8, 0.35), M.armor, 0, 0.3, -4.8);
+    put(lid, plate(6, 0.5, 1.2, 0.15), M.armor2, 0, 0.8, -8.6);
+    j.pods.push(lid);
+  }
+  // thrusters low on the back: nozzles that flare during dashes and leaps
+  j.nozzles = [];
+  for (const s of [-1, 1]) {
+    put(chest, cached('nozzle', () => boxUV(new THREE.CylinderGeometry(1.7, 2.5, 4.2, 16))), M.frame, s * 5.2, 1.4, -10.4, 0.55, 0, 0);
+    put(chest, cyl(1.9, 1.2), M.armor2, s * 5.2, 3.5, -9.1, 0.55, 0, 0);
+    lit(put(chest, new THREE.CircleGeometry(1.7, 16), M.thrust, s * 5.2, -0.42, -11.52, P / 2 + 0.55, 0, 0));
+    j.nozzles.push(V(s * 5.2, -1.1, -12));
+    // vent louvres down the flanks of the hull
+    for (let k = 0; k < 4; k++) put(chest, plate(0.6, 1.1, 7, 0.15), M.armor2, s * 13.9, 3.5 + k * 1.8, -0.5, 0, 0, s * 0.22);
+  }
   // the head: a low cockpit module with a visor slit, sunk between the shoulders
   const head = J(chest, 0, 19.5, 2, 'head', j);
   put(head, cyl(3, 4), M.frame, 0, -0.5, 0);
@@ -395,15 +480,25 @@ export function buildRobot() {
   for (const s of [-1, 1]) put(head, plate(1, 5, 7.5), M.armor2, s * 4.9, 2.8, 0.3);
   put(head, plate(1.2, 3, 6), M.armor2, 0, 7.6, -1.5, -0.3);
   const beacon = lit(put(head, new THREE.SphereGeometry(0.45, 10, 8), M.red, 0, 8.9, -3.4)); j.beacon = beacon;
+  for (const s of [-1, 1]) {
+    put(head, cyl(0.18, 6, 6), M.piston, s * 3.8, 8.4, -2.6, -0.45, 0, s * 0.25);
+    put(head, cyl(0.45, 1.2, 8), M.frame, s * 3.8, 5.8, -1.4, -0.45, 0, s * 0.25);
+    for (let k = 0; k < 3; k++) put(head, plate(0.5, 0.5, 3.6, 0.1), M.frame, s * 5.5, 1.4 + k * 1.1, 1.2);
+    lit(put(head, plate(0.9, 0.9, 0.4, 0.15), M.amber, s * 3.2, 2.2, 5.3));
+  }
+  put(head, trap(5, 7, 2.6, 4, 0.8), M.armor2, 0, 0.6, 4.2, -0.2);
   // arms: layered pauldrons, armoured biceps, heavy gauntlets, big fists
   for (const [s, S] of [[-1, 'L'], [1, 'R']]) {
     const sh = J(chest, s * 19, 15, 0, 'sh' + S, j);
     put(sh, sph(5), M.frame);
-    put(sh, plate(15, 3.2, 18, 2.2), M.armor, s * 1.5, 7.2, 0, 0, 0, -s * 0.18);
-    put(sh, plate(14, 3.3, 1.1, 0.4), M.hazard, s * 1.5, 7.2, 9.1, 0, 0, -s * 0.18);
-    put(sh, plate(12, 3, 17, 2), M.armor2, s * 7.4, 4, 0, 0, 0, -s * 0.62);
-    put(sh, plate(9, 3, 16, 2), M.armor, s * 10.1, -0.6, 0, 0, 0, -s * 1.05);
-    lit(put(sh, new THREE.CylinderGeometry(0.9, 0.9, 0.6, 12), M.amber, s * 4.5, 8.4, 9.05, P / 2, 0, 0));
+    // the pauldron rides on its own hinge so it lifts and tilts as the arm moves
+    const pad = J(sh, 0, 2, 0, 'pad' + S, j);
+    put(pad, plate(15, 3.2, 18, 2.2), M.armor, s * 1.5, 5.2, 0, 0, 0, -s * 0.18);
+    put(pad, plate(14, 3.3, 1.1, 0.4), M.hazard, s * 1.5, 5.2, 9.1, 0, 0, -s * 0.18);
+    put(pad, plate(12, 3, 17, 2), M.armor2, s * 7.4, 2, 0, 0, 0, -s * 0.62);
+    put(pad, plate(9, 3, 16, 2), M.armor, s * 10.1, -2.6, 0, 0, 0, -s * 1.05);
+    for (let k = 0; k < 4; k++) put(pad, plate(1.4, 0.8, 14, 0.2), M.frame, s * (3 + k * 2.4), 6.9 - k * 0.45, 0, 0, 0, -s * 0.18);
+    lit(put(pad, new THREE.CylinderGeometry(0.9, 0.9, 0.6, 12), M.amber, s * 4.5, 6.4, 9.05, P / 2, 0, 0));
     put(sh, cyl(3.2, 13), M.frame, 0, -8, 0);
     put(sh, trap(7.4, 8.6, 11, 8, 1.6), M.armor, 0, -8.6, 0);
     put(sh, cyl(0.6, 11), M.piston, 0, -8, 4.6);
@@ -412,13 +507,37 @@ export function buildRobot() {
     put(el, plate(5, 5, 3, 1), M.hazard, 0, 0.6, -4);
     put(el, trap(11, 9, 15, 10.5, 2.4), M.armor, 0, -8.6, 0);
     for (let k = 0; k < 3; k++) { put(el, plate(1.2, 3, 11, 0.4), M.armor2, s * 5.7, -4 - k * 4, 0); lit(put(el, plate(6, 0.55, 0.4, 0.1), M.glow, 0, -6 - k * 2.4, 5.45)); }
+    put(el, cyl(0.45, 12), M.piston, -s * 4.6, -8, -3.8);
+    if (S === 'L') {
+      // the plasma blade: folded into a housing on the outside of the forearm, it slides out past the fist
+      put(el, plate(1.8, 13, 5.6, 0.5), M.armor2, s * 6.6, -9, 0);
+      const blade = J(el, s * 6.6, -9, 0, 'blade', j);
+      const bg = cached('blade', () => { const g = extrude(poly([[-2.7, 0], [2.7, 0], [2.3, -31], [0, -42], [-1.8, -33]]), 0.8, 0.2); g.rotateY(-P / 2); return g; });
+      put(blade, bg, M.blade);
+      lit(put(blade, plate(0.6, 32, 0.6, 0.12), M.edge, 0, -16, 2.6)); lit(put(blade, plate(0.6, 26, 0.6, 0.12), M.edge, 0, -14, -1.9));
+      j.bladeTip = new THREE.Object3D(); j.bladeTip.position.set(0, -38, 0); blade.add(j.bladeTip);
+      blade.scale.y = 0.05; blade.visible = false;
+    }
     const fist = J(el, 0, -16, 0, 'fist' + S, j);
     put(fist, cyl(3, 3), M.frame, 0, -0.5, 0);
     put(fist, plate(8, 6.5, 7.5, 1.2), M.frame, 0, -4.6, 0);
-    put(fist, plate(8.6, 3, 3.4, 0.6), M.armor, 0, -7.7, 1.6);
-    for (let k = 0; k < 4; k++) put(fist, plate(1.8, 3, 2.8, 0.4), M.armor2, -2.9 + k * 1.95, -7.4, 4.3);
-    put(fist, plate(2.2, 5, 2.4, 0.4), M.armor2, s * 4.6, -5, 2.8, 0, 0, s * 0.3);
+    put(fist, plate(8.6, 3, 3.4, 0.6), M.armor, 0, -6.6, 2.6);
     put(fist, plate(8, 5, 1.4, 0.4), M.armor, 0, -4.6, -4.2);
+    lit(put(fist, new THREE.CircleGeometry(1.6, 18), M.glow, 0, -7.9, -0.6, P / 2, 0, 0));
+    // four fingers, each with two segments, and an opposed thumb: they close into a fist, open for the palm cannon
+    const fing = J(fist, 0, -7.6, 1.8, 'fing' + S, j); j['fingD' + S] = [];
+    for (let k = 0; k < 4; k++) {
+      const x = -2.9 + k * 1.95;
+      put(fing, plate(1.8, 3.2, 2.6, 0.4), M.armor2, x, -1.5, 0);
+      put(fing, cyl(0.55, 1.9, 8), M.frame, x, 0, 0, 0, 0, P / 2);
+      const d = J(fing, x, -3.1, 0, 'fd' + S + k, j);
+      put(d, plate(1.65, 2.6, 2.3, 0.4), M.armor2, 0, -1.3, 0);
+      put(d, plate(1.2, 0.7, 1.6, 0.2), M.frame, 0, -2.6, 0.5);
+      j['fingD' + S].push(d);
+    }
+    const th = J(fist, s * 4.5, -3.6, 2.2, 'thumb' + S, j);
+    put(th, plate(2.2, 4.6, 2.4, 0.4), M.armor2, 0, -2, 0.4, 0, 0, s * 0.15);
+    put(th, cyl(0.7, 2.4, 8), M.frame, 0, 0, 0, P / 2, 0, 0);
   }
   // legs
   for (const [s, S] of [[-1, 'L'], [1, 'R']]) {
@@ -436,14 +555,19 @@ export function buildRobot() {
     for (const sx of [-1, 1]) put(knee, cyl(0.7, 12), M.piston, sx * 2.8, -7.5, -5);
     const ankle = J(knee, 0, -15, 0, 'ankle' + S, j);
     put(ankle, sph(3.4), M.frame);
-    put(ankle, plate(12, 3, 17, 1.5), M.frame, 0, -2.5, 3);
+    put(ankle, plate(12, 3, 14, 1.5), M.frame, 0, -2.5, 1.8);
     put(ankle, plate(10, 2.4, 9, 1.5), M.armor, 0, -0.5, 2.5, 0.12);
-    for (let k = -1; k <= 1; k++) put(ankle, plate(3.4, 2.4, 5, 0.6), M.armor2, k * 3.7, -2.6, 12.6);
-    put(ankle, plate(11, 0.8, 0.8, 0.2), M.hazard, 0, -1.3, 15.2);
+    for (const sx of [-1, 1]) put(ankle, cyl(0.5, 7), M.piston, sx * 4.2, 2.2, 1.5, 0.9, 0, 0);
+    // the toes hinge at the ball of the foot and bend as the heel lifts
+    const toe = J(ankle, 0, -2.5, 9.6, 'toe' + S, j);
+    put(toe, cyl(1.2, 11, 12), M.frame, 0, 0, 0, 0, 0, P / 2);
+    for (let k = -1; k <= 1; k++) put(toe, plate(3.4, 2.4, 5, 0.6), M.armor2, k * 3.7, -0.1, 3);
+    put(toe, plate(11, 0.8, 0.8, 0.2), M.hazard, 0, 1.2, 5.6);
     put(ankle, plate(7, 3, 4.5, 1), M.armor, 0, -2.4, -6.5);
   }
   // floodlights on the shoulders of the chest, a light inside the reactor
   const lamp = new THREE.SpotLight(0xffd8a0, 14000, 260, 0.42, 0.6, 2); lamp.position.set(0, 21, 8); chest.add(lamp); const tgt = new THREE.Object3D(); tgt.position.set(0, -10, 80); chest.add(tgt); lamp.target = tgt;
   const coreLight = new THREE.PointLight(0x6fd8ff, 260, 30, 2); coreLight.position.set(0, 9.5, 13); chest.add(coreLight);
-  return { root, j, mats: M, core, visor, coreLight };
+  const thrustLight = new THREE.PointLight(0xff8a30, 0, 60, 2); thrustLight.position.set(0, -2, -14); chest.add(thrustLight);
+  return { root, j, mats: M, core, visor, coreLight, thrustLight };
 }

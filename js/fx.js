@@ -58,6 +58,9 @@ export function makeFx(scene, q) {
   // fire lights: a few pooled point lights that flicker over the biggest fires
   const fireLights = Array.from({ length: q.fireLights }, () => { const l = new THREE.PointLight(0xff6a20, 0, 120, 2); scene.add(l); return { l, fire: null }; });
   const fires = [];
+  // shockwave rings: flat additive rings racing outward over the ground
+  const ringG = new THREE.RingGeometry(0.86, 1, 72); ringG.rotateX(-Math.PI / 2);
+  const rings = Array.from({ length: 6 }, () => { const m = new THREE.Mesh(ringG, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })); m.visible = false; m.frustumCulled = false; scene.add(m); return { m, t: 1, life: 1, r: 1 }; });
   const F = {
     smoke, glow, sparks,
     // dust and smoke where something heavy lands
@@ -85,6 +88,24 @@ export function makeFx(scene, q) {
       F.sparks(p, 30 * power);
       F.fire(p.x, p.z, p.y * 0.3 + 2, rnd(12, 25) * power);
     },
+    // a landing that shakes the ground: a ring of light, a wall of dust rolling outward, chunks of road thrown up
+    shockwave(p, r, color = [0.55, 0.85, 1]) {
+      const R = rings.find((x) => x.t >= x.life) || rings[0]; R.t = 0; R.life = 0.9; R.r = r; R.m.position.set(p.x, 0.6, p.z); R.m.material.color.setRGB(...color); R.m.visible = true;
+      for (let i = 0; i < 44; i++) { const a = i / 44 * 6.28 + rnd(-0.1, 0.1), s = rnd(30, 70) * r / 60; smoke.add({ x: p.x + Math.cos(a) * 6, y: rnd(0.5, 3), z: p.z + Math.sin(a) * 6, vx: Math.cos(a) * s, vy: rnd(2, 8), vz: Math.sin(a) * s, life: rnd(2, 4), size: rnd(10, 18), grow: 2.2, color: [0.13, 0.12, 0.11], alpha: 0.55, drag: 1.4, fadeIn: 0.05 }); }
+      for (let i = 0; i < 24; i++) chunks.push({ p: new THREE.Vector3(p.x + rnd(-r / 3, r / 3), 1, p.z + rnd(-r / 3, r / 3)), v: new THREE.Vector3(rnd(-15, 15), rnd(14, 32), rnd(-15, 15)), r: new THREE.Euler(rnd(0, 6), rnd(0, 6), rnd(0, 6)), w: new THREE.Vector3(rnd(-4, 4), rnd(-4, 4), rnd(-4, 4)), s: rnd(1.5, 4), t: 0 });
+      while (chunks.length > DEB) chunks.shift();
+      glow.add({ x: p.x, y: 4, z: p.z, vx: 0, vy: 0, vz: 0, life: 0.35, size: r * 1.4, grow: 1, color, alpha: 0.7 });
+    },
+    // thruster exhaust: a short hot flame and a little smoke
+    thrust(p, dir, k = 1) {
+      for (let i = 0; i < 2; i++) { const s = rnd(40, 70); glow.add({ x: p.x + rnd(-0.5, 0.5), y: p.y, z: p.z + rnd(-0.5, 0.5), vx: dir.x * s + rnd(-3, 3), vy: dir.y * s + rnd(-3, 3), vz: dir.z * s + rnd(-3, 3), life: rnd(0.15, 0.3), size: rnd(4, 7) * k, grow: -0.3, color: [1, 0.62, 0.25], cool: [0.5, 0.15, 0.6], alpha: 0.85 }); }
+      if (Math.random() < 0.3 * k) smoke.add({ x: p.x, y: p.y, z: p.z, vx: dir.x * 20, vy: dir.y * 20 + 2, vz: dir.z * 20, life: rnd(1, 2), size: rnd(4, 7), grow: 3, color: [0.3, 0.3, 0.32], alpha: 0.25, drag: 1.5 });
+    },
+    // a missile in flight: a bright head and a smoke trail
+    trail(p) {
+      glow.add({ x: p.x, y: p.y, z: p.z, vx: 0, vy: 0, vz: 0, life: 0.12, size: 4, color: [1, 0.7, 0.35], alpha: 1 });
+      smoke.add({ x: p.x, y: p.y, z: p.z, vx: rnd(-1, 1), vy: rnd(0, 1.5), vz: rnd(-1, 1), life: rnd(1.4, 2.4), size: rnd(1.6, 2.6), grow: 2.5, color: [0.5, 0.5, 0.52], alpha: 0.35, drag: 0.8 });
+    },
     // a fire that keeps burning (in a ruin, on the street)
     fire(x, z, y = 2, life = 20) { fires.push({ x, z, y, life, t: 0, power: rnd(0.7, 1.3) }); },
     // a building collapsing: chunks, a huge dust cloud, fires inside
@@ -106,6 +127,7 @@ export function makeFx(scene, q) {
       const ranked = fires.slice().sort((a, b) => b.power - a.power);
       fireLights.forEach((fl, i) => { const f = ranked[i]; if (!f) { fl.l.intensity = 0; return; } fl.l.position.set(f.x, f.y + 5, f.z); fl.l.intensity = 9000 * f.power * Math.min(1, (f.life - f.t) / 4) * (0.75 + 0.25 * Math.sin(t * 23 + i) * Math.sin(t * 7.3 + i * 2)); });
       smoke.update(dt); glow.update(dt); sparks.update(dt);
+      for (const R of rings) { if (R.t >= R.life) { R.m.visible = false; continue; } R.t += dt; const k = Math.min(1, R.t / R.life), sc = R.r * (0.15 + 0.85 * (1 - (1 - k) ** 3)); R.m.scale.set(sc, 1, sc); R.m.material.opacity = (1 - k) ** 1.5 * 0.9; }
       // debris
       let n = 0;
       for (let i = chunks.length - 1; i >= 0; i--) {
