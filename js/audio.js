@@ -107,10 +107,15 @@ export const Audio = {
       const o = osc('triangle', rnd(95, 120), 80, 0.25, t), og = ctx.createGain(); o.connect(og); env(og, 0.002, 0.12 * k, 0.22, t); out(og, 0.3, 1, P);
     }
   },
-  servo(p = null) { if (!ctx) return; const P = place(p), o = osc('square', rnd(180, 260), rnd(420, 600), 0.25), g = ctx.createGain(); const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 4; o.connect(f); f.connect(g); env(g, 0.02, 0.05, 0.3); out(g, 0.2, 1, P); },
+  servo(p = null) { if (!ctx) return; if (play('servo', place(p), 0.45, rnd(0.85, 1.15), null, 0.25)) return; const P = place(p), o = osc('square', rnd(180, 260), rnd(420, 600), 0.25), g = ctx.createGain(); const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 4; o.connect(f); f.connect(g); env(g, 0.02, 0.05, 0.3); out(g, 0.2, 1, P); },
   // the roar: a growling saw chord through moving vocal formants, with breath noise
   roar(len = 2.2, pitch = 1, p = null, vol = 1) {
-    if (!ctx) return; const P = place(p), t = now(), g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.7 * vol, t + Math.min(0.35, len * 0.25)); g.gain.setValueAtTime(0.7 * vol, t + len * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    if (!ctx) return;
+    // the recorded roars: a long one for the big moments (twice over for the longest), a shorter one otherwise
+    if (len >= 2.2 ? play('roar_long', place(p), 1.1 * vol, pitch, null, 0.6) : play('roar', place(p), vol, pitch, null, 0.5)) {
+      if (len > 3) setTimeout(() => play('roar', place(p), 0.8 * vol, pitch * 0.92, null, 0.6), 1100);
+      return;
+    } const P = place(p), t = now(), g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.7 * vol, t + Math.min(0.35, len * 0.25)); g.gain.setValueAtTime(0.7 * vol, t + len * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
     const mix = ctx.createGain(); mix.gain.value = 0.25;
     for (const [f, det] of [[62, 0], [64, 7], [93, -5], [124, 3]]) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(f * pitch * 0.8, t); o.frequency.linearRampToValueAtTime(f * pitch * 1.1, t + Math.min(0.4, len * 0.3)); o.frequency.linearRampToValueAtTime(f * pitch * 0.7, t + len); o.detune.value = det; const am = ctx.createOscillator(), ag = ctx.createGain(); am.frequency.value = rnd(22, 34); ag.gain.value = 0.5; am.connect(ag); ag.connect(mix.gain); am.start(t); am.stop(t + len); o.connect(mix); o.start(t); o.stop(t + len + 0.1); }
     const sh = ctx.createWaveShaper(), c = new Float32Array(256); for (let i = 0; i < 256; i++) { const x = i / 128 - 1; c[i] = Math.tanh(x * 4); } sh.curve = c; mix.connect(sh);
@@ -157,8 +162,9 @@ export const Audio = {
     if (heavy) { const r = noise(1.6, 'lowpass', 260, 0.6, t + 0.05), rg = ctx.createGain(); r.fl.connect(rg); env(rg, 0.08, 0.5 * pw, 1.4, t + 0.05); out(rg, 0.7, 1, P); }
   },
   // the one hit cries out: the kaiju a short ragged growl or a yelp; the robot strains, hisses, and sounds a damage alarm
-  pain(kind, power = 1, p = null, low = false) {
+  pain(kind, power = 1, p = null, low = false, pitch = 1) {
     if (!ctx) return; const P = place(p), t = now();
+    if (kind === 'kaiju' && play('pain', P, Math.min(1.2, 0.5 + power * 0.4), pitch, null, 0.45)) return;
     if (kind === 'kaiju') { this.roar(rnd(0.45, 0.7) + power * 0.35, rnd(1.25, 1.55) - power * 0.15, p, Math.min(1, 0.45 + power * 0.35)); return; }
     const o = osc('sawtooth', rnd(140, 190), rnd(55, 70), 0.6, t + 0.05), f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 600; f.Q.value = 3; const g = ctx.createGain(); o.connect(f); f.connect(g); env(g, 0.02, 0.12 * power, 0.55, t + 0.05); out(g, 0.3, 1, P);
     const h = noise(0.9, 'highpass', 2500, 0.7, t + 0.08), hg = ctx.createGain(); h.fl.connect(hg); env(hg, 0.03, 0.16 * power, 0.8, t + 0.08); out(hg, 0.3, 1, P);
@@ -166,7 +172,8 @@ export const Audio = {
   },
   // a heavy limb cutting the air: lower and longer the bigger the move
   swing(power = 1, p = null) {
-    if (!ctx) return; const P = place(p), t = now(), len = 0.25 + 0.2 * power, n = noise(len + 0.1, 'bandpass', 220, 1.1, t), g = ctx.createGain();
+    if (!ctx) return;
+    if (play(power > 0.9 ? 'swing_h' : 'swing_l', place(p), Math.min(1.2, 0.45 + power * 0.4), 1.15 / (0.75 + power * 0.3), null, 0.25)) return; const P = place(p), t = now(), len = 0.25 + 0.2 * power, n = noise(len + 0.1, 'bandpass', 220, 1.1, t), g = ctx.createGain();
     n.fl.frequency.exponentialRampToValueAtTime(900 + 300 * power, t + len * 0.6); n.fl.frequency.exponentialRampToValueAtTime(300, t + len); n.fl.connect(g); env(g, len * 0.55, 0.32 * Math.min(1.5, power), len * 0.45, t); out(g, 0.2, 1, P);
   },
   explosion(power = 1, dist = 100, p = null) {
@@ -196,5 +203,8 @@ export const Audio = {
   // a giant foot or body skidding over the street
   skid(power = 1, p = null) { if (!ctx) return; const P = place(p), n = noise(0.5, 'bandpass', 500, 0.8), g = ctx.createGain(); n.fl.connect(g); env(g, 0.04, 0.25 * power, 0.4); out(g, 0.3, 1, P); },
   loaded() { return Object.values(SFX).reduce((n, l) => n + l.filter(Boolean).length, 0); },
+  // the kaiju's effort as it throws itself into a move; its last cry
+  growl(p = null, pitch = 1, vol = 0.8) { if (!ctx) return; if (!play('growl', place(p), vol, pitch, null, 0.4)) this.roar(0.8, 1.2 * pitch, p, 0.6 * vol); },
+  death(p = null, pitch = 1) { if (!ctx) return; if (!play('death', place(p), 1.3, pitch, null, 0.7)) this.roar(3.5, 0.75 * pitch, p); },
   tension(k) { if (droneGain) droneGain.gain.setTargetAtTime(0.04 + k * 0.08, now(), 1); },
 };

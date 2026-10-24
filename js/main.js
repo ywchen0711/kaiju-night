@@ -5,11 +5,11 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { buildWorld, SHORE, STAGE } from './world.js?v=4';
-import { ROBOTS, KAIJUS, STAGES, resolve } from './roster.js?v=1';
+import { ROBOTS, KAIJUS, STAGES, resolve } from './roster.js?v=2';
 import { makeFx } from './fx.js?v=7';
-import { Fighter, think } from './fighters.js?v=9';
-import { Audio } from './audio.js?v=5';
-import { T, has, getLang, setLang, applyDom } from './i18n.js?v=5';
+import { Fighter, think } from './fighters.js?v=10';
+import { Audio } from './audio.js?v=6';
+import { T, has, getLang, setLang, applyDom } from './i18n.js?v=6';
 applyDom();
 
 const $ = (s) => document.querySelector(s);
@@ -112,6 +112,13 @@ function clampCam(pos, look) {
 let robot, kaiju, mode = 'title', pilot = null, endT = 0, slow = 1, slowT = 0, shake = 0, flash = 0, hurt = 0, fightT = 0;
 const shots = [];   // plasma bolts and missiles in flight
 const bolts = [];   // lightning from Voltra's storm, fading
+const shells = [];  // the artillery jaeger's shells in flight
+// a fighter's own names for the moves it does differently (the chest beat in place of the acid, and so on), in one pass
+function ovr(text, f) {
+  const list = (T('ovr') || {})[f && f.v.id]; if (!list || !text) return text;
+  const map = new Map(list), re = new RegExp(list.map(([a]) => a).sort((a, b) => b.length - a.length).map((a) => a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
+  return text.replace(re, (m) => map.get(m));
+}
 // blows that cut or tear (claws, teeth, blades): they sound sharper, and scrape on armour
 const SHARP = new Set(['swipe', 'rake', 'bite', 'pounce', 'blade']);
 // the camera's reaction to blows: a spring knocked by each hit, and a punch of zoom
@@ -131,7 +138,7 @@ function newFight() {
   // they start far apart, somewhere different every fight: often the kaiju wading in from the harbour, sometimes already in the streets
   const [rp, kp] = startSpots(); robot.pos.copy(rp); kaiju.pos.copy(kp);
   robot.yaw = Math.atan2(kp.x - rp.x, kp.z - rp.z); kaiju.yaw = Math.atan2(rp.x - kp.x, rp.z - kp.z);
-  shots.length = 0; endT = 0; fightT = 0; slow = 1; beamOn = 0; director.next = null; director.cut('wide');
+  shots.length = 0; shells.length = 0; endT = 0; fightT = 0; slow = 1; beamOn = 0; director.next = null; director.cut('wide');
 }
 function startSpots() {
   const clear = (p, r) => !W.buildings.some((b) => b.alive && !b.pole && Math.abs(p.x - b.x) < b.w / 2 + r && Math.abs(p.z - b.z) < b.d / 2 + r);
@@ -156,14 +163,14 @@ function handleEvents(f, opp) {
   for (const e of f.events) {
     switch (e.type) {
       case 'attack':
-        if (e.super && mode !== 'title') { banner(T(has(e.name + '_' + f.v.id) ? e.name + '_' + f.v.id : e.name), f); director.super(f, e.name); }
+        if (e.super && mode !== 'title') { banner(has(e.name + '_' + f.v.id) ? T(e.name + '_' + f.v.id) : ovr(T(e.name), f), f); director.super(f, e.name); }
         if (e.sig && mode !== 'title') banner(T('sig_' + f.v.id), f, T('sigOf'));
         if (e.sig && f.v.id === 'voltra') { Audio.roar(2, 1.3, f.wp('head')); break; }
-        if (e.name === 'beam') { Audio.charge(f.wp('head')); Audio.roar(1.4, 1.25, f.wp('head')); break; }
-        if (e.name === 'quake') { Audio.roar(1.6, 0.9, f.wp('head')); break; }
+        if (e.name === 'beam') { if (f.moves.beam.beam) Audio.charge(f.wp('head')); Audio.roar(1.4, 1.25 * (f.v.voice || 1), f.wp('head')); break; }
+        if (e.name === 'quake') { Audio.roar(1.6, 0.9 * (f.v.voice || 1), f.wp('head')); break; }
         if (f.kind === 'robot') { Audio.servo(f.wp('chest')); if (e.name === 'plasma' || e.super) Audio.charge(f.wp('chest')); if (['backstep', 'rocket', 'blade'].includes(e.name) || (e.sig && f.v.id !== 'striker')) setTimeout(() => Audio.thrust(f.wp('chest'), 0.9), 180); }
         else if (e.name === 'acid') Audio.hiss(f.moves.acid.dur * 0.55, f.wp('head'));
-        else if (e.name === 'charge' || e.name === 'pounce') Audio.roar(0.9, 1.15, f.wp('head'), 0.7);
+        else if (e.name === 'charge' || e.name === 'pounce' || e.sig || Math.random() < 0.4) Audio.growl(f.wp('head'), f.v.voice || 1, e.name === 'charge' || e.sig ? 0.9 : 0.6);
         break;
       case 'hit': {
         const blocked = e.dmg < 0, power = Math.min(2, Math.abs(e.dmg) / 50 + 0.4);
@@ -174,7 +181,7 @@ function handleEvents(f, opp) {
         if (!blocked && power > 0.7) fx.punch(e.point, Math.min(1.6, power));
         Audio.impact({ p: e.point, power, metal: opp.kind === 'robot', blocked, heavy, sharp: sharp && f.kind === 'kaiju' || sharp });
         // the one hit cries out (not on every blow)
-        if (!blocked && opp.alive && (heavy || Math.random() < 0.35) && (opp.painT || 0) < t) { opp.painT = t + 1.2; const pp = opp.wp(opp.kind === 'robot' ? 'chest' : 'head'), pw = power; setTimeout(() => Audio.pain(opp.kind, pw, pp, opp.hp < opp.maxHp * 0.3), 60 + Math.random() * 80); }
+        if (!blocked && opp.alive && (heavy || Math.random() < 0.35) && (opp.painT || 0) < t) { opp.painT = t + 1.2; const pp = opp.wp(opp.kind === 'robot' ? 'chest' : 'head'), pw = power; const vc = opp.v.voice || 1; setTimeout(() => Audio.pain(opp.kind, pw, pp, opp.hp < opp.maxHp * 0.3, vc), 60 + Math.random() * 80); }
         bigHit(e.point, blocked ? 0.4 : power);
         // the camera takes the blow: knocked the way it travels, a quick punch of zoom
         kickV.addScaledVector(dir, (blocked ? 18 : 48) * power).y += (blocked ? 6 : 24) * power; fovKick = Math.max(fovKick, (blocked ? 0.6 : 2.2) * power);
@@ -216,6 +223,21 @@ function handleEvents(f, opp) {
         hitLight.color.setHex(f.v.beam[2]); bigHit(p.clone().setY(20), 0.9); setTimeout(() => hitLight.color.setHex(0xffc080), 300);
         flash = Math.max(flash, 0.3); Audio.strike(p); Audio.thunder(Math.max(0.6, d / 200)); shake = Math.max(shake, Math.min(1, 70 / d)); dangerAt(p, 11, 'blast'); break; }
       case 'swing': Audio.swing(e.power, e.p); break;
+      // the ape's chest beaten like a drum
+      case 'beat': Audio.impact({ p: e.p, power: 0.75, metal: false }); fx.punch(e.p, 0.5); shake = Math.max(shake, Math.min(0.5, 50 / camDist(e.p))); break;
+      // a gale off the wings: dust and spray driven forward along the ground
+      case 'gust': {
+        for (let i = 0; i < 10; i++) { const sd = V(e.dir.z, 0, -e.dir.x).multiplyScalar(rnd(-30, 30)); fx.smoke.add({ x: e.p.x + sd.x, y: rnd(1, 14), z: e.p.z + sd.z, vx: e.dir.x * rnd(60, 110) + sd.x * 0.6, vy: rnd(-2, 6), vz: e.dir.z * rnd(60, 110) + sd.z * 0.6, life: rnd(0.8, 1.6), size: rnd(6, 12), grow: 2.5, color: [0.32, 0.31, 0.3], alpha: 0.28, drag: 1.2 }); }
+        if ((f.gustSnd = (f.gustSnd || 0) - 1) < 0) { f.gustSnd = 3; Audio.swing(1.6, e.p); } break; }
+      case 'flap': Audio.swing(1.5, e.p); if (f.air < 25) fx.dust(f.pos.x, f.pos.z, 0.5); break;
+      case 'grab': Audio.impact({ p: e.p, power: 1, metal: opp.kind === 'robot', heavy: false }); Audio.growl(f.wp('head'), f.v.voice || 1, 1); break;
+      // a cannon shell: the gun's blast, then a shell lobbed onto the target
+      case 'shell': {
+        const dist = e.from.distanceTo(e.to);
+        shells.push({ p0: e.from.clone(), p1: e.to.clone(), t: 0, T: 0.7 + dist / 450, h: 30 + dist * 0.22, dmg: e.dmg, r: e.r, from: f, target: e.target, p: e.from.clone() });
+        fx.sparks(e.from, 24); fx.glow.add({ x: e.from.x, y: e.from.y, z: e.from.z, vx: 0, vy: 0, vz: 0, life: 0.15, size: 26, grow: 1, color: [1, 0.75, 0.4], alpha: 0.9 });
+        for (let i = 0; i < 8; i++) fx.smoke.add({ x: e.from.x, y: e.from.y, z: e.from.z, vx: rnd(-6, 6), vy: rnd(2, 8), vz: rnd(-6, 6), life: rnd(1.5, 3), size: rnd(5, 9), grow: 2.5, color: [0.35, 0.34, 0.33], alpha: 0.4, drag: 1 });
+        bigHit(e.from, 0.6); Audio.explosion(0.7, camDist(e.from), e.from); shake = Math.max(shake, Math.min(0.8, 60 / camDist(e.from))); break; }
       case 'skid': { for (const p of e.ps) { if (e.water) fx.smoke.add({ x: p.x, y: 0, z: p.z, vx: rnd(-5, 5), vy: rnd(6, 14), vz: rnd(-5, 5), life: rnd(0.6, 1.2), size: rnd(4, 7), grow: 2, color: [0.5, 0.55, 0.6], alpha: 0.35, grav: 20, drag: 0.6 }); else { fx.dust(p.x, p.z, 0.3 * e.power, 0.5); if (f.kind === 'robot' && STAGE.id !== 'snow' && Math.random() < 0.5) fx.sparks(V(p.x, 0.5, p.z), 6); } }
         if ((f.skidSnd = (f.skidSnd || 0) - 1) < 0) { f.skidSnd = 2; Audio.skid(e.power, e.ps[0]); } break; }
       case 'land': fx.dust(e.p.x, e.p.z, 1.1 * e.power); Audio.step(1.5 * e.power, camDist(e.p), false, e.p, f.kind === 'robot'); shake = Math.max(shake, Math.min(0.9, 60 / camDist(e.p))); break;
@@ -223,7 +245,7 @@ function handleEvents(f, opp) {
       case 'breathe': for (const p of e.ps) for (let i = 0; i < 5; i++) fx.smoke.add({ x: p.x, y: p.y, z: p.z, vx: e.dir.x * rnd(5, 9) + rnd(-1, 1), vy: e.dir.y * rnd(5, 9) + rnd(-0.5, 1), vz: e.dir.z * rnd(5, 9) + rnd(-1, 1), life: rnd(1.6, 2.6), size: rnd(1.5, 3), grow: 3.5, color: [0.42, 0.45, 0.48], alpha: 0.16, drag: 1.2, fadeIn: 0.2 }); break;
       case 'vent': for (const p of e.ps) for (let i = 0; i < 16; i++) fx.smoke.add({ x: p.x + rnd(-1, 1), y: p.y, z: p.z + rnd(-1, 1), vx: e.up.x * rnd(8, 18) + rnd(-2, 2), vy: e.up.y * rnd(10, 22), vz: e.up.z * rnd(8, 18) + rnd(-2, 2), life: rnd(2, 3.5), size: rnd(2.5, 5), grow: 4, color: [0.55, 0.58, 0.62], alpha: 0.28, drag: 1, fadeIn: 0.1 }); if (camDist(e.ps[0]) < 160) Audio.whoosh(e.ps[0]); break;
       case 'burn': if (Math.random() < 0.3) fx.sparks(e.point.clone().add(V(rnd(-8, 8), rnd(-10, 10), rnd(-8, 8))), 6, [0.4, 0.9, 1]); if (pilot === opp) hurt = Math.min(0.7, hurt + 0.02); break;
-      case 'roar': Audio.roar(2.4, f.v.id === 'voltra' ? 1.15 : f.v.id === 'magmaw' ? 0.85 : 1, f.wp('head')); shake = Math.max(shake, 0.6); director.roar(f); break;
+      case 'roar': Audio.roar(2.4, f.v.voice || 1, f.wp('head')); shake = Math.max(shake, 0.6); director.roar(f); break;
       case 'step': {
         const d = camDist(e.p); if (e.water) { for (let i = 0; i < 14; i++) fx.smoke.add({ x: e.p.x + rnd(-4, 4), y: 0, z: e.p.z + rnd(-4, 4), vx: rnd(-10, 10), vy: rnd(10, 26), vz: rnd(-10, 10), life: rnd(1, 2), size: rnd(4, 9), grow: 2, color: [0.5, 0.55, 0.6], alpha: 0.4, grav: 25, drag: 0.5 }); }
         else fx.dust(e.p.x, e.p.z, 0.45 * e.power);
@@ -233,13 +255,26 @@ function handleEvents(f, opp) {
         if (b.pole) { fx.sparks(V(b.x, 9, b.z), 25); }
         else { fx.collapse(b); Audio.collapse(d, V(b.x, b.h * 0.4, b.z)); shake = Math.max(shake, Math.min(1, 80 / d)); if (b.h > 60) director.collapse(b); }
         break; }
-      case 'death': slowmo(0.3, 2.2); Audio.explosion(1.5, camDist(f.pos), f.pos); if (f.kind === 'kaiju') Audio.roar(3.5, 0.75, f.wp('head')); else { fx.explosion(f.wp('chest', [0, 10, 9]), 1.5); } director.death(f); break;
+      case 'death': slowmo(0.3, 2.2); Audio.explosion(1.5, camDist(f.pos), f.pos); if (f.kind === 'kaiju') Audio.death(f.wp('head'), f.v.voice || 1); else { fx.explosion(f.wp('chest', [0, 10, 9]), 1.5); } director.death(f); break;
     }
   }
   f.events.length = 0;
 }
 
+function updateShells(dt) {
+  for (let i = shells.length - 1; i >= 0; i--) {
+    const s = shells[i]; s.t += dt; const k = Math.min(1, s.t / s.T);
+    s.p.copy(s.p0).lerp(s.p1, k); s.p.y += 4 * s.h * k * (1 - k); fx.trail(s.p, [1, 0.6, 0.3]);
+    if (k < 1) continue;
+    const p = s.p1.clone().setY(2), tg = s.target;
+    fx.explosion(p, 1.1); fx.dust(p.x, p.z, 1.2); bigHit(p.clone().setY(10), 1); Audio.explosion(1.1, camDist(p), p); shake = Math.max(shake, Math.min(1.2, 90 / camDist(p))); dangerAt(p, 16, 'blast');
+    if (tg.alive && tg.air < 12 && Math.hypot(tg.pos.x - p.x, tg.pos.z - p.z) < s.r + tg.R * 0.7) { const d = tg.takeHit(s.dmg, s.from, 18, { point: tg.pos.clone().setY(20) }); s.from.emit('hit', { point: tg.pos.clone().setY(30), dmg: d, move: 'shell', heavy: s.dmg > 80 }); }
+    for (const b of W.buildings) if (b.alive && Math.hypot(b.x - p.x, b.z - p.z) < s.r + Math.max(b.w, b.d) / 2) { W.collapse(b); fx.collapse(b); Audio.collapse(camDist(p), p); }
+    shells.splice(i, 1);
+  }
+}
 function updateShots(dt) {
+  updateShells(dt);
   for (let i = shots.length - 1; i >= 0; i--) {
     if (shots[i].missile) { updateMissile(shots[i], i, dt); continue; }
     const s = shots[i], step = 320 * dt; s.life -= dt; fx.plasma(s.p, s.dir);
@@ -468,9 +503,9 @@ function begin(m) {
 // the texts that depend on the mode and the language
 function labelHud() {
   $('#nmR').textContent = T(robot.v.name); $('#nmK').textContent = T(kaiju.v.name);
-  $('#help').hidden = !(pilot || onFoot); $('#help').innerHTML = onFoot ? T('helpH') : pilot === robot ? T('helpR') : pilot === kaiju ? T('helpK') : '';
+  $('#help').hidden = !(pilot || onFoot); $('#help').innerHTML = onFoot ? T('helpH') : pilot === robot ? ovr(T('helpR'), robot) : pilot === kaiju ? ovr(T('helpK'), kaiju) : '';
   const pads = onFoot ? {} : T(pilot === robot ? 'padR' : 'padK');
-  document.querySelectorAll('#pads [data-k]').forEach((b) => { const k = b.dataset.k; b.textContent = pads[k] || ''; b.hidden = !b.textContent; });
+  document.querySelectorAll('#pads [data-k]').forEach((b) => { const k = b.dataset.k; b.textContent = ovr(pads[k] || '', pilot); b.hidden = !b.textContent; });
   if (onFoot) $('#feed').textContent = T('camMine'); else if (director.label) { director.label = LABELS[director.shot] ? T(LABELS[director.shot]) : ''; $('#feed').textContent = director.label; }
 }
 let muted = false;
@@ -509,7 +544,7 @@ function hud() {
   for (const [f, id] of [[robot, '#mtR'], [kaiju, '#mtK']]) { const el = $(id); el.style.width = f.meter + '%'; el.parentNode.classList.toggle('full', f.meter >= 100); }
   if (pilot) {
     const list = pilot === robot ? [['plasma', 'cdPlasma', 7], ['rocket', 'cdRocket', 5], ['dash', 'cdDash', 2.5], ['sig', 'cdSig', 9], ['missiles', 'cdMissiles', 6, 1], ['blade', 'cdBlade', 6, 1]] : [['acid', 'cdAcid', 6], ['sig', 'cdSig', 9], ['pounce', 'cdPounce', 7], ['charge', 'cdCharge', 4.5], ['roar', 'cdRoar', 9], ['beam', 'cdBeam', 6, 1], ['quake', 'cdQuake', 6, 1]];
-    $('#cds').innerHTML = list.map(([k, key, max, sup]) => { const n = key === 'cdSig' ? 'T ' + T('sig_' + pilot.v.id) : T(key); const c = pilot.cd[k] || 0, fr = sup ? Math.min(pilot.meter / 100, 1 - c / max) : 1 - c / max; return `<span class="cd${fr >= 1 ? ' ready' : ''}${sup ? ' sup' : ''}"><i style="width:${fr * 100}%"></i>${n}</span>`; }).join('');
+    $('#cds').innerHTML = list.map(([k, key, max, sup]) => { const n = key === 'cdSig' ? 'T ' + T('sig_' + pilot.v.id) : ovr(T(key), pilot); const c = pilot.cd[k] || 0, fr = sup ? Math.min(pilot.meter / 100, 1 - c / max) : 1 - c / max; return `<span class="cd${fr >= 1 ? ' ready' : ''}${sup ? ' sup' : ''}"><i style="width:${fr * 100}%"></i>${n}</span>`; }).join('');
   } else $('#cds').innerHTML = '';
   const t = Math.floor(fightT); $('#clock').textContent = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 }

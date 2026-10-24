@@ -22,6 +22,13 @@ A giant robot and a kaiju fight in a harbour city at night, in the rain: **https
     Striker MK-V (light: back fins, a forearm blade; fast and fragile).
   - Kaiju: Abyssal (deep-sea, blue heat beam), Magmaw (lava veins glowing through cracked hide, rock armour, a snout horn,
     magma breath; biggest and slowest), Voltra (lean, tall crackling plates, a crest of blades, thunder breath; fastest).
+  - Different bodies, not just paint: Asura MK-III (阿修羅) has a second pair of arms with their own fists and a ring of light
+    behind its head (a four-fist combo, 阿修羅千拳 Thousand Fists); Fortress MK-VII (要塞) carries two long shoulder cannons
+    that lob shells (its main guns replace the palm cannon; 攻城砲擊 Siege Barrage walks six shells onto the enemy).
+    Gorvax (巨猿獸) is an ape: no tail or plates, a hunched back, huge long arms, a short muzzle and tusks; it backhands,
+    beats its chest into a rage, rampages with hammer fists, and grabs the jaeger, hoists it overhead and slams it down
+    (巨猿擒摔). Pterax (翼龍獸) has skinned bat wings that fold along its back and beat in the air: a wing gale that drives
+    the enemy back, a dive-bomb from high up (俯衝轟炸), and a talon strike from the air (掠空爪擊).
   - Each has a signature move of its own (key **T**, gamepad LT): Sentinel's thruster uppercut 推進升龍拳, Bulwark's
     ground-splitting double fist 斷層鐵拳, Striker's four-slash blade flurry 疾風連斬, Abyssal's ring of light 深淵脈衝,
     Magmaw's line of lava geysers 熔岩噴發, Voltra's lightning called down from the sky 雷暴召喚. The AI uses them from the right range.
@@ -45,8 +52,10 @@ A giant robot and a kaiju fight in a harbour city at night, in the rain: **https
   blow folds it over, a leg blow buckles that knee; hooks and claws from one side twist and tip the body away and turn it;
   the arms fly out, the head whips a beat after the body, the kaiju's jaw gapes and its tail lashes; heavier blows take
   longer to shake off. The one hit cries out: a ragged growl, or the robot's hydraulics straining and a damage alarm.
-- **Sound**: blows, footfalls, explosions, collapses, the plasma shot, thrusters and lightning are real recordings (Kenney's
-  CC0 Impact Sounds and Sci-fi Sounds), layered and pitched down to giant scale by tools/design_sfx.py into sfx/ (credits in
+- **Sound**: blows, footfalls, explosions, collapses, the plasma shot, thrusters, lightning, the kaiju's roars, growls,
+  pain and death cries (each kaiju at its own pitch), swings and the robot's hydraulics are real recordings (Kenney's CC0
+  Impact Sounds and Sci-fi Sounds; rubberduck's 80 CC0 creature SFX 1 and 2, Ogrebane's Monster Sound Effects Pack, the
+  Swishes Sound Pack from OpenGameArt, all CC0), layered and pitched down to giant scale by tools/design_sfx.py into sfx/ (credits in
   sfx/README.txt); a big blow stacks a second recording and a sub-bass thump. The synthesized versions remain as a fallback.
   Synthesized with WebAudio: a crack, a deep body thump, then ringing armour plate (a
   dent crunch, claws scraping, bolts falling away) or a wet slap of hide (bone crunch on heavy blows), a ground rumble.
