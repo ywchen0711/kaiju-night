@@ -38,7 +38,17 @@ A giant robot and a kaiju fight in a harbour city at night, in the rain: **https
   a thruster leap into a plasma-blade slash (電漿劍 · 天降斬); the kaiju's atomic heat beam (原子熱線), which sweeps
   after its target and cuts through buildings, and a leaping quake stomp (震地踐踏). Each gets a hero shot, a wide shot
   and a title across the screen. Pilot keys: **E** / **F** for the specials, **C** to back off.
-- **Sound**: all synthesized with WebAudio (rain, thunder, roar, metal impacts, footfalls, explosions, collapse rumble).
+- **Impact**: a blow that connects freezes both fighters for a few frames (longer the heavier it is); the camera is knocked
+  the way the blow travels and punches in; a flash and a ring of air at the point of contact; sparks spray away from it;
+  a fighter driven back skids, kicking up dust (sparks off the robot's feet).
+- **Hit reactions** depend on where and how the blow lands: a head blow snaps the head back (an uppercut lifts it), a body
+  blow folds it over, a leg blow buckles that knee; hooks and claws from one side twist and tip the body away and turn it;
+  the arms fly out, the head whips a beat after the body, the kaiju's jaw gapes and its tail lashes; heavier blows take
+  longer to shake off. The one hit cries out: a ragged growl, or the robot's hydraulics straining and a damage alarm.
+- **Sound**: all synthesized with WebAudio. Impacts are layered: a crack, a deep body thump, then ringing armour plate (a
+  dent crunch, claws scraping, bolts falling away) or a wet slap of hide (bone crunch on heavy blows), a ground rumble.
+  Swings are heard as the limb moves; robot footfalls hiss and clank. Sounds in the world are panned to where they are,
+  quieter, duller, later and more echoing the farther away they are. Also rain or wind, thunder, roars, explosions, collapse.
 - Controls: keyboard, touch (stick and buttons) or gamepad. Three quality presets.
 
 ```

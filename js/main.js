@@ -6,9 +6,9 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { buildWorld, SHORE, STAGE } from './world.js?v=4';
 import { ROBOTS, KAIJUS, STAGES, resolve } from './roster.js?v=1';
-import { makeFx } from './fx.js?v=6';
-import { Fighter, think } from './fighters.js?v=8';
-import { Audio } from './audio.js?v=3';
+import { makeFx } from './fx.js?v=7';
+import { Fighter, think } from './fighters.js?v=9';
+import { Audio } from './audio.js?v=4';
 import { T, has, getLang, setLang, applyDom } from './i18n.js?v=5';
 applyDom();
 
@@ -112,6 +112,10 @@ function clampCam(pos, look) {
 let robot, kaiju, mode = 'title', pilot = null, endT = 0, slow = 1, slowT = 0, shake = 0, flash = 0, hurt = 0, fightT = 0;
 const shots = [];   // plasma bolts and missiles in flight
 const bolts = [];   // lightning from Voltra's storm, fading
+// blows that cut or tear (claws, teeth, blades): they sound sharper, and scrape on armour
+const SHARP = new Set(['swipe', 'rake', 'bite', 'pounce', 'blade']);
+// the camera's reaction to blows: a spring knocked by each hit, and a punch of zoom
+const kick = new THREE.Vector3(), kickV = new THREE.Vector3(); let fovKick = 0;
 // the kaiju's heat beam: a white-hot core inside a blue halo, redrawn every frame it fires
 const beamG = new THREE.CylinderGeometry(1, 1, 1, 18, 1, true); beamG.translate(0, 0.5, 0);
 const beamMesh = new THREE.Group(), beamCore = new THREE.Mesh(beamG, new THREE.MeshBasicMaterial({ color: 0xc8f4ff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -154,20 +158,27 @@ function handleEvents(f, opp) {
       case 'attack':
         if (e.super && mode !== 'title') { banner(T(has(e.name + '_' + f.v.id) ? e.name + '_' + f.v.id : e.name), f); director.super(f, e.name); }
         if (e.sig && mode !== 'title') banner(T('sig_' + f.v.id), f, T('sigOf'));
-        if (e.sig && f.v.id === 'voltra') { Audio.roar(2, 1.3); break; }
-        if (e.name === 'beam') { Audio.charge(); Audio.roar(1.4, 1.25); break; }
-        if (e.name === 'quake') { Audio.roar(1.6, 0.9); break; }
-        if (f.kind === 'robot') { Audio.servo(); if (e.name === 'plasma' || e.super) Audio.charge(); else Audio.whoosh(); }
-        else if (e.name === 'acid') Audio.hiss(f.moves.acid.dur * 0.55);
-        else if (e.name !== 'roar') Audio.whoosh();
+        if (e.sig && f.v.id === 'voltra') { Audio.roar(2, 1.3, f.wp('head')); break; }
+        if (e.name === 'beam') { Audio.charge(f.wp('head')); Audio.roar(1.4, 1.25, f.wp('head')); break; }
+        if (e.name === 'quake') { Audio.roar(1.6, 0.9, f.wp('head')); break; }
+        if (f.kind === 'robot') { Audio.servo(f.wp('chest')); if (e.name === 'plasma' || e.super) Audio.charge(f.wp('chest')); }
+        else if (e.name === 'acid') Audio.hiss(f.moves.acid.dur * 0.55, f.wp('head'));
+        else if (e.name === 'charge' || e.name === 'pounce') Audio.roar(0.9, 1.15, f.wp('head'), 0.7);
         break;
       case 'hit': {
         const blocked = e.dmg < 0, power = Math.min(2, Math.abs(e.dmg) / 50 + 0.4);
         const dir = opp.pos.clone().sub(f.pos).setY(0).normalize();
-        if (opp.kind === 'robot') { fx.sparks(e.point, blocked ? 50 : 90); Audio.clang(power); if (!blocked && e.heavy) fx.explosion(e.point, 0.5); }
-        else { fx.blood(e.point, dir, blocked ? 10 : 34, opp.v.blood); fx.sparks(e.point, 20, opp.v.blood.map((c) => 0.4 + c * 0.6)); Audio.thud(power); Audio.clang(power * 0.4); }
+        const heavy = e.heavy || power > 1.25, sharp = SHARP.has(e.move) || (e.move === 'sig' && f.v.id === 'striker');
+        if (opp.kind === 'robot') { fx.sparks(e.point, blocked ? 50 : 90, undefined, dir); if (!blocked && heavy) fx.explosion(e.point, 0.5); }
+        else { fx.blood(e.point, dir, blocked ? 10 : 34, opp.v.blood); fx.sparks(e.point, 20, opp.v.blood.map((c) => 0.4 + c * 0.6), dir); }
+        if (!blocked && power > 0.7) fx.punch(e.point, Math.min(1.6, power));
+        Audio.impact({ p: e.point, power, metal: opp.kind === 'robot', blocked, heavy, sharp: sharp && f.kind === 'kaiju' || sharp });
+        // the one hit cries out (not on every blow)
+        if (!blocked && opp.alive && (heavy || Math.random() < 0.35) && (opp.painT || 0) < t) { opp.painT = t + 1.2; const pp = opp.wp(opp.kind === 'robot' ? 'chest' : 'head'), pw = power; setTimeout(() => Audio.pain(opp.kind, pw, pp, opp.hp < opp.maxHp * 0.3), 60 + Math.random() * 80); }
         bigHit(e.point, blocked ? 0.4 : power);
-        if (e.heavy && !blocked) { slowmo(0.25, 0.5); director.impact(e.point, opp); }
+        // the camera takes the blow: knocked the way it travels, a quick punch of zoom
+        kickV.addScaledVector(dir, (blocked ? 18 : 48) * power).y += (blocked ? 6 : 24) * power; fovKick = Math.max(fovKick, (blocked ? 0.6 : 2.2) * power);
+        if (heavy && !blocked) { slowmo(0.35, 0.35); director.impact(e.point, opp); }
         if (pilot && opp === pilot) hurt = Math.min(1, hurt + 0.5);
         break; }
       case 'shoot': shots.push({ p: e.from.clone(), dir: e.dir, dmg: e.dmg, life: 2, from: f }); Audio.zap(); bigHit(e.from, 0.5); break;
@@ -175,7 +186,7 @@ function handleEvents(f, opp) {
       case 'missile': {
         const side = V(rnd(-1, 1), 0, rnd(-1, 1)).multiplyScalar(18);
         shots.push({ missile: true, p: e.from.clone(), v: e.dir.clone().multiplyScalar(70).add(side), sp: 90, t: 0, life: 4, target: e.target, from: f, jit: V(rnd(-9, 9), rnd(-14, 12), rnd(-9, 9)) });
-        fx.thrust(e.from, e.dir.clone().negate(), 1.4); if (Math.random() < 0.5) Audio.whoosh(); break; }
+        fx.thrust(e.from, e.dir.clone().negate(), 1.4); if (Math.random() < 0.5) Audio.whoosh(e.from); break; }
       case 'beam': {
         if (f.act && !f.act.beamSnd) { f.act.beamSnd = true; Audio.zap(); Audio.hiss(f.act.m.dur * (f.act.m.beam[1] - f.act.m.beam[0])); }
         const v = e.to.clone().sub(e.from), L = Math.max(1, v.length()), fl = 1 + Math.sin(t * 60) * 0.12 + Math.random() * 0.1;
@@ -187,14 +198,14 @@ function handleEvents(f, opp) {
         shake = Math.max(shake, 0.35); break; }
       case 'quake': {
         if (onFoot && human.alive && Math.hypot(human.pos.x - e.p.x, human.pos.z - e.p.z) < e.r * 0.45) killHuman('blast');
-        fx.shockwave(e.p, e.r * (e.big ? 1.4 : 1), e.col || (e.big ? [0.55, 0.85, 1] : [0.7, 0.9, 1])); Audio.explosion(e.big ? 1.6 : 1.1, camDist(e.p)); Audio.step(2.5, camDist(e.p));
+        fx.shockwave(e.p, e.r * (e.big ? 1.4 : 1), e.col || (e.big ? [0.55, 0.85, 1] : [0.7, 0.9, 1])); Audio.explosion(e.big ? 1.6 : 1.1, camDist(e.p), e.p); Audio.step(2.5, camDist(e.p), false, e.p);
         shake = Math.max(shake, e.big ? 2.2 : 1.5); flash = Math.max(flash, 0.22); if (e.big) slowmo(0.35, 0.6); break; }
       // Magmaw's eruption: a geyser of lava and burning rock out of the street
       case 'erupt': {
         const p = e.p, d = camDist(p);
         for (let i = 0; i < 26; i++) fx.glow.add({ x: p.x + rnd(-4, 4), y: rnd(0, 4), z: p.z + rnd(-4, 4), vx: rnd(-6, 6), vy: rnd(30, 70), vz: rnd(-6, 6), life: rnd(0.8, 1.6), size: rnd(6, 13), grow: 0.8, color: [1, 0.5, 0.12], cool: [0.35, 0.05, 0], alpha: 0.9, grav: 40, drag: 0.4 });
         fx.explosion(p.clone().setY(3), 0.7); fx.dust(p.x, p.z, 1.2); fx.fire(p.x + rnd(-3, 3), p.z + rnd(-3, 3), 1, rnd(14, 26));
-        bigHit(p.clone().setY(8), 0.8); Audio.explosion(0.9, d); Audio.step(1.6, d); shake = Math.max(shake, Math.min(1.2, 90 / d)); dangerAt(p, 13, 'blast'); break; }
+        bigHit(p.clone().setY(8), 0.8); Audio.explosion(0.9, d, p); Audio.step(1.6, d, false, p); shake = Math.max(shake, Math.min(1.2, 90 / d)); dangerAt(p, 13, 'blast'); break; }
       // Voltra's lightning: a jagged bolt out of the sky, a flash, a scorch mark
       case 'bolt': {
         const p = e.p, d = camDist(p), pts = []; let q = p.clone().add(V(rnd(-60, 60), 420, rnd(-60, 60)));
@@ -203,23 +214,26 @@ function handleEvents(f, opp) {
         scene.add(line); bolts.push({ line, t: 0.45 });
         fx.sparks(p.clone().setY(1), 50, [0.8, 0.7, 1]); fx.glow.add({ x: p.x, y: 3, z: p.z, vx: 0, vy: 0, vz: 0, life: 0.4, size: 40, grow: 1, color: [0.7, 0.6, 1], alpha: 0.8 }); fx.dust(p.x, p.z, 0.8); fx.fire(p.x, p.z, 1, rnd(6, 12));
         hitLight.color.setHex(f.v.beam[2]); bigHit(p.clone().setY(20), 0.9); setTimeout(() => hitLight.color.setHex(0xffc080), 300);
-        flash = Math.max(flash, 0.3); Audio.zap(); Audio.thunder(Math.max(0.6, d / 200)); shake = Math.max(shake, Math.min(1, 70 / d)); dangerAt(p, 11, 'blast'); break; }
-      case 'land': fx.dust(e.p.x, e.p.z, 1.1 * e.power); Audio.step(1.5 * e.power, camDist(e.p)); shake = Math.max(shake, Math.min(0.9, 60 / camDist(e.p))); break;
+        flash = Math.max(flash, 0.3); Audio.zap(p); Audio.thunder(Math.max(0.6, d / 200)); shake = Math.max(shake, Math.min(1, 70 / d)); dangerAt(p, 11, 'blast'); break; }
+      case 'swing': Audio.swing(e.power, e.p); break;
+      case 'skid': { for (const p of e.ps) { if (e.water) fx.smoke.add({ x: p.x, y: 0, z: p.z, vx: rnd(-5, 5), vy: rnd(6, 14), vz: rnd(-5, 5), life: rnd(0.6, 1.2), size: rnd(4, 7), grow: 2, color: [0.5, 0.55, 0.6], alpha: 0.35, grav: 20, drag: 0.6 }); else { fx.dust(p.x, p.z, 0.3 * e.power, 0.5); if (f.kind === 'robot' && STAGE.id !== 'snow' && Math.random() < 0.5) fx.sparks(V(p.x, 0.5, p.z), 6); } }
+        if ((f.skidSnd = (f.skidSnd || 0) - 1) < 0) { f.skidSnd = 2; Audio.skid(e.power, e.ps[0]); } break; }
+      case 'land': fx.dust(e.p.x, e.p.z, 1.1 * e.power); Audio.step(1.5 * e.power, camDist(e.p), false, e.p, f.kind === 'robot'); shake = Math.max(shake, Math.min(0.9, 60 / camDist(e.p))); break;
       case 'thrust': for (const p of e.ps) fx.thrust(p, e.dir, e.k); break;
       case 'breathe': for (const p of e.ps) for (let i = 0; i < 5; i++) fx.smoke.add({ x: p.x, y: p.y, z: p.z, vx: e.dir.x * rnd(5, 9) + rnd(-1, 1), vy: e.dir.y * rnd(5, 9) + rnd(-0.5, 1), vz: e.dir.z * rnd(5, 9) + rnd(-1, 1), life: rnd(1.6, 2.6), size: rnd(1.5, 3), grow: 3.5, color: [0.42, 0.45, 0.48], alpha: 0.16, drag: 1.2, fadeIn: 0.2 }); break;
-      case 'vent': for (const p of e.ps) for (let i = 0; i < 16; i++) fx.smoke.add({ x: p.x + rnd(-1, 1), y: p.y, z: p.z + rnd(-1, 1), vx: e.up.x * rnd(8, 18) + rnd(-2, 2), vy: e.up.y * rnd(10, 22), vz: e.up.z * rnd(8, 18) + rnd(-2, 2), life: rnd(2, 3.5), size: rnd(2.5, 5), grow: 4, color: [0.55, 0.58, 0.62], alpha: 0.28, drag: 1, fadeIn: 0.1 }); if (camDist(e.ps[0]) < 160) Audio.hiss && Audio.whoosh(); break;
+      case 'vent': for (const p of e.ps) for (let i = 0; i < 16; i++) fx.smoke.add({ x: p.x + rnd(-1, 1), y: p.y, z: p.z + rnd(-1, 1), vx: e.up.x * rnd(8, 18) + rnd(-2, 2), vy: e.up.y * rnd(10, 22), vz: e.up.z * rnd(8, 18) + rnd(-2, 2), life: rnd(2, 3.5), size: rnd(2.5, 5), grow: 4, color: [0.55, 0.58, 0.62], alpha: 0.28, drag: 1, fadeIn: 0.1 }); if (camDist(e.ps[0]) < 160) Audio.whoosh(e.ps[0]); break;
       case 'burn': if (Math.random() < 0.3) fx.sparks(e.point.clone().add(V(rnd(-8, 8), rnd(-10, 10), rnd(-8, 8))), 6, [0.4, 0.9, 1]); if (pilot === opp) hurt = Math.min(0.7, hurt + 0.02); break;
-      case 'roar': Audio.roar(2.4); shake = Math.max(shake, 0.6); director.roar(f); break;
+      case 'roar': Audio.roar(2.4, f.v.id === 'voltra' ? 1.15 : f.v.id === 'magmaw' ? 0.85 : 1, f.wp('head')); shake = Math.max(shake, 0.6); director.roar(f); break;
       case 'step': {
         const d = camDist(e.p); if (e.water) { for (let i = 0; i < 14; i++) fx.smoke.add({ x: e.p.x + rnd(-4, 4), y: 0, z: e.p.z + rnd(-4, 4), vx: rnd(-10, 10), vy: rnd(10, 26), vz: rnd(-10, 10), life: rnd(1, 2), size: rnd(4, 9), grow: 2, color: [0.5, 0.55, 0.6], alpha: 0.4, grav: 25, drag: 0.5 }); }
         else fx.dust(e.p.x, e.p.z, 0.45 * e.power);
-        Audio.step(e.power, d, e.water); shake = Math.max(shake, Math.min(0.5, 40 / d) * e.power); break; }
+        Audio.step(e.power, d, e.water, e.p, f.kind === 'robot'); shake = Math.max(shake, Math.min(0.5, 40 / d) * e.power); break; }
       case 'smash': {
         const b = e.b, d = camDist(V(b.x, 0, b.z));
         if (b.pole) { fx.sparks(V(b.x, 9, b.z), 25); }
-        else { fx.collapse(b); Audio.collapse(d); shake = Math.max(shake, Math.min(1, 80 / d)); if (b.h > 60) director.collapse(b); }
+        else { fx.collapse(b); Audio.collapse(d, V(b.x, b.h * 0.4, b.z)); shake = Math.max(shake, Math.min(1, 80 / d)); if (b.h > 60) director.collapse(b); }
         break; }
-      case 'death': slowmo(0.3, 2.2); Audio.explosion(1.5, camDist(f.pos)); if (f.kind === 'kaiju') Audio.roar(3.5, 0.75); else { fx.explosion(f.wp('chest', [0, 10, 9]), 1.5); } director.death(f); break;
+      case 'death': slowmo(0.3, 2.2); Audio.explosion(1.5, camDist(f.pos), f.pos); if (f.kind === 'kaiju') Audio.roar(3.5, 0.75, f.wp('head')); else { fx.explosion(f.wp('chest', [0, 10, 9]), 1.5); } director.death(f); break;
     }
   }
   f.events.length = 0;
@@ -234,9 +248,9 @@ function updateShots(dt) {
     for (let k = 0; k < 4 && !boom; k++) {
       s.p.addScaledVector(s.dir, step / 4);
       if (target.alive && target.hitTest(target, s.p, 4)) { const d = target.takeHit(s.dmg, s.from, 22); s.from.emit && s.from.emit('hit', { point: s.p.clone(), dmg: d, move: 'plasma', heavy: true }); boom = true; }
-      for (const b of W.buildings) if (b.alive && !b.pole && Math.abs(s.p.x - b.x) < b.w / 2 && Math.abs(s.p.z - b.z) < b.d / 2 && s.p.y < b.h) { W.collapse(b); fx.collapse(b); Audio.collapse(camDist(s.p)); boom = true; break; }
+      for (const b of W.buildings) if (b.alive && !b.pole && Math.abs(s.p.x - b.x) < b.w / 2 && Math.abs(s.p.z - b.z) < b.d / 2 && s.p.y < b.h) { W.collapse(b); fx.collapse(b); Audio.collapse(camDist(s.p), s.p.clone()); boom = true; break; }
     }
-    if (boom) { fx.explosion(s.p, 1); Audio.explosion(1, camDist(s.p)); bigHit(s.p, 1.2); dangerAt(s.p, 14, 'blast'); shots.splice(i, 1); }
+    if (boom) { fx.explosion(s.p, 1); Audio.explosion(1, camDist(s.p), s.p.clone()); bigHit(s.p, 1.2); dangerAt(s.p, 14, 'blast'); shots.splice(i, 1); }
   }
 }
 
@@ -250,10 +264,10 @@ function updateMissile(s, i, dt) {
     s.p.addScaledVector(s.v, dt / 3);
     if (s.p.y < 0.5) boom = true;
     else if (target.alive && target.hitTest(target, s.p, 3)) { const d = target.takeHit(8, s.from, 3); s.from.emit('hit', { point: s.p.clone(), dmg: d, move: 'missile', heavy: false }); boom = true; }
-    else for (const b of W.buildings) if (b.alive && !b.pole && Math.abs(s.p.x - b.x) < b.w / 2 && Math.abs(s.p.z - b.z) < b.d / 2 && s.p.y < b.h) { W.collapse(b); fx.collapse(b); Audio.collapse(camDist(s.p)); boom = true; break; }
+    else for (const b of W.buildings) if (b.alive && !b.pole && Math.abs(s.p.x - b.x) < b.w / 2 && Math.abs(s.p.z - b.z) < b.d / 2 && s.p.y < b.h) { W.collapse(b); fx.collapse(b); Audio.collapse(camDist(s.p), s.p.clone()); boom = true; break; }
   }
   fx.trail(s.p);
-  if (boom) { fx.explosion(s.p, 0.45); Audio.explosion(0.5, camDist(s.p)); bigHit(s.p, 0.5); dangerAt(s.p, 9, 'blast'); shots.splice(i, 1); }
+  if (boom) { fx.explosion(s.p, 0.45); Audio.explosion(0.5, camDist(s.p), s.p.clone()); bigHit(s.p, 0.5); dangerAt(s.p, 9, 'blast'); shots.splice(i, 1); }
 }
 
 // the special move's name across the screen
@@ -398,7 +412,7 @@ const KAIJU_KEYS = { KeyJ: 'swipe', KeyK: 'bite', KeyL: 'tail', KeyI: 'charge', 
 function pressed(code) {
   const map = pilot === robot ? ROBOT_KEYS : KAIJU_KEYS;
   if (map[code]) pilot.start(map[code]);
-  if ((code === 'ShiftLeft' || code === 'ShiftRight') && pilot === robot && !(robot.cd.dash > 0) && robot.can()) { robot.dash = 0.45; robot.cd.dash = 2.5; Audio.whoosh(); Audio.servo(); }
+  if ((code === 'ShiftLeft' || code === 'ShiftRight') && pilot === robot && !(robot.cd.dash > 0) && robot.can()) { robot.dash = 0.45; robot.cd.dash = 2.5; Audio.whoosh(robot.wp('chest')); Audio.servo(robot.wp('chest')); }
 }
 function pilotInput() {
   const i = { move: 0, strafe: 0 };
@@ -545,8 +559,15 @@ function frame() {
   // handheld drift + shake
   const hand = onFoot ? 0.02 : director.shot === 'street' || director.shot === 'ruin' ? 0.6 : 0.25;
   camera.position.x += Math.sin(t * 1.3) * hand + (Math.random() - 0.5) * shake * 2.2; camera.position.y += Math.sin(t * 1.7 + 1) * hand * 0.6 + (Math.random() - 0.5) * shake * 1.6;
+  // the hit kick: a stiff spring, so the camera jolts and settles in a few frames
+  { const w = 34, z = 0.55, n = Math.ceil(rdt * w / 0.25), h = rdt / n;
+    for (let i = 0; i < n; i++) { kickV.addScaledVector(kick, -w * w * h).multiplyScalar(1 - Math.min(0.9, 2 * z * w * h)); kick.addScaledVector(kickV, h); }
+    if (!(kick.lengthSq() < 400)) { kick.set(0, 0, 0); kickV.set(0, 0, 0); } camera.position.add(kick); }
   camera.lookAt(camLook); camera.rotateZ(Math.sin(t * 0.7) * 0.004 * (hand * 4) + (Math.random() - 0.5) * shake * 0.01);
-  if (Math.abs(camera.fov - f.fov) > 0.05) { camera.fov += (f.fov - camera.fov) * (cut ? 1 : Math.min(1, rdt * 3)); camera.updateProjectionMatrix(); }
+  fovKick *= Math.exp(-rdt * 9);
+  const fovT = f.fov - fovKick;
+  if (Math.abs(camera.fov - fovT) > 0.05) { camera.fov += (fovT - camera.fov) * (cut ? 1 : Math.min(1, rdt * (fovKick > 0.1 ? 20 : 3))); camera.updateProjectionMatrix(); }
+  Audio.listen(camera.position, V(1, 0, 0).applyQuaternion(camera.quaternion));
   shake = Math.max(0, shake - rdt * 2.2); flash = Math.max(0, flash - rdt * 1.5); hurt = Math.max(0, hurt - rdt * 0.8);
   hitLight.intensity *= Math.exp(-rdt * 9);
   for (let i = bolts.length - 1; i >= 0; i--) { const b = bolts[i]; b.t -= rdt; b.line.material.opacity = Math.max(0, b.t / 0.45) * (0.6 + 0.4 * Math.random()); if (b.t <= 0) { scene.remove(b.line); b.line.geometry.dispose(); b.line.material.dispose(); bolts.splice(i, 1); } }

@@ -125,6 +125,7 @@ function sampleKeys(keys, p) {
   }
   return out;
 }
+const HOOKS = new Set(['swipe', 'rake', 'cross', 'elbow', 'combo', 'tail', 'sig', 'hammer']);
 const LEGJ = new Set(['hipL', 'hipR', 'kneeL', 'kneeR', 'ankleL', 'ankleR', 'toeL', 'toeR']);
 
 // ------------------------------------------------------------------ a fighter
@@ -178,17 +179,45 @@ export class Fighter {
     this.meter = Math.min(100, this.meter + d * 0.14); from.meter = Math.min(100, (from.meter || 0) + d * 0.1);
     // a special move in progress shrugs off ordinary blows (super armour); a grazing beam burns without staggering
     const armour = this.act && this.act.m.super && !o.down;
+    if (!o.graze) {
+      this.lastLimb = o.limb || ''; this.react(o.point || this.pos.clone().addScaledVector(dir, -this.R).setY(40), dir, knock, blocked, armour, from);
+      // hit-stop: a blow that connects stops both of them dead for a few frames (longer the heavier it is)
+      if (o.melee) { const hs = blocked ? 0.05 : 0.05 + 0.1 * Math.min(1, knock / 30); this.hitstop = Math.max(this.hitstop || 0, hs); from.hitstop = Math.max(from.hitstop || 0, hs); }
+    }
     if (!blocked && !o.graze) {
-      this.hitT = 0; this.hitSide = Math.random() < 0.5 ? -1 : 1; this.hitPow = Math.min(1, knock / 25 + 0.3) * (armour ? 0.4 : 1); this.bodyV -= this.hitPow * 14;
+      this.hitT = 0; this.hitPow = Math.min(1, knock / 25 + 0.3) * (armour ? 0.4 : 1); this.bodyV -= this.hitPow * 14;
       if (!armour) { this.stun = Math.max(this.stun, Math.min(1.1, 0.25 + knock / 40)); this.act = null; this.spinYaw = 0; const floored = o.down === true || (typeof o.down === 'number' && Math.random() < o.down) || (knock >= 30 && Math.random() < 0.22); if (floored && this.down <= 0) this.down = this.downDur; }
     }
     if (this.hp <= 0) this.die();
     return blocked ? -d : d;
   }
+  // the reaction to a blow: from where it landed on the body (head, body or legs; left or right) and which way it pushed,
+  // a set of offsets that snap in and then ease off (heavier blows hit harder and take longer to shake off)
+  react(pt, dir, knock, blocked, armour, from) {
+    const f = this.face(), right = new THREE.Vector3(-f.z, 0, f.x), H = this.kind === 'robot' ? 72 : 62;
+    const hy = clamp(pt.y / H, 0, 1.2), side = clamp(((pt.x - this.pos.x) * right.x + (pt.z - this.pos.z) * right.z) / (this.R * 0.9), -1, 1);
+    const name = from.act ? from.act.name : '', m = from.act ? from.act.m : null, limb = this.lastLimb || '';
+    // which way the blow sweeps across the body: a hook or a claw from the attacker's right drives it to its right, and so on
+    const ls = limb === 'tail' ? 1 : /R$/.test(limb) ? 1 : /L$/.test(limb) ? -1 : 0, hook = HOOKS.has(name) || limb === 'tail';
+    const across = clamp(dir.x * right.x + dir.z * right.z + ls * (hook ? 0.75 : 0.25), -1, 1);
+    const pow = Math.min(1.3, knock / 25 + 0.25) * (blocked ? 0.35 : 1) * (armour ? 0.45 : 1);
+    const zone = hy > 0.72 ? 'head' : hy > 0.32 ? 'body' : 'legs';
+    const lift = m && (m.lift || name === 'headbutt'), overhead = name === 'hammer' || name === 'quake' || name === 'pounce' || (m && m.quake !== undefined && !m.at);
+    const R = { t: 0, pow, across, dec: 3.4 - Math.min(1, pow) * 1.5, zone,
+      pitch: lift ? -0.75 : overhead ? 0.35 : zone === 'head' ? -0.5 : zone === 'body' ? 0.42 : -0.12,   // + folds forward over a gut blow, - snaps back
+      yaw: -across * 0.65 - side * 0.25, roll: across * 0.28 + (zone === 'legs' ? side * 0.18 : 0),
+      dip: overhead ? 7 : zone === 'body' ? 3 : zone === 'legs' ? 4.5 : 1.5,
+      knee: zone === 'legs' || (pow > 0.9 && !blocked) ? (side > 0 ? 'R' : 'L') : null,
+      headP: lift ? -0.7 : zone === 'head' ? -0.55 : zone === 'body' ? 0.3 : 0, headY: -across * 0.55 - side * 0.2, arm: blocked ? 0.15 : 0.7 * pow };
+    this.re = R;
+    // a blow from the side turns the whole body; one from the front drives it back
+    this.yawVel += -across * pow * (this.kind === 'robot' ? 1.8 : 1.4);
+  }
   die() { this.alive = false; this.act = null; this.spinYaw = 0; this.deathT = 0; this.emit('death'); }
 
   // ---------------------------------------------------------------- per frame
   update(dt, opp, input, world) {
+    if (this.hitstop > 0) { this.hitstop -= dt; dt *= 0.07; }
     for (const k of Object.keys(this.cd)) this.cd[k] = Math.max(0, this.cd[k] - dt);
     if (this.alive) this.meter = Math.min(100, this.meter + dt * 1.2);
     this.stun -= dt; this.down -= dt; this.dash = Math.max(0, this.dash - dt);
@@ -221,11 +250,13 @@ export class Fighter {
       // blows: one hit window, or several for a combo, each landing at most once
       const hits = m.hits || (m.hit ? [{ t: m.hit, at: m.at, dmg: m.dmg, knock: m.knock, r: m.hitR }] : []);
       a.done = a.done || [];
+      a.sw = a.sw || [];
       hits.forEach((h, hi) => {
+        if (!a.sw[hi] && p >= h.t[0] - 0.1 && this.act) { a.sw[hi] = true; this.emit('swing', { p: h.at === 'head' ? this.wp('head') : this.wp(m.spin ? 'tail6' : h.at), power: Math.min(1.6, (h.knock || 10) / 18 + 0.4) * (robot ? 0.9 : 1.1) }); }
         if (a.done[hi] || p < h.t[0] || p > h.t[1] || !this.act) return;
         let hp = h.at === 'head' ? this.wp('head', [0, -2, 12]) : this.wp(h.at, [0, -3, 0]);
         if (m.spin) { this.root.updateMatrixWorld(true); for (const seg of this.j.tail) { const q = seg.localToWorld(new THREE.Vector3(0, 0, -3)); if (this.hitTest(opp, q, 9)) { hp = q; break; } } }
-        if (this.hitTest(opp, hp, h.r || (m.spin ? 9 : 8))) { a.done[hi] = true; const dealt = opp.takeHit(h.dmg * this.dmgK * (this.rage ? 1.15 : 1), this, h.knock, { down: m.down, unblockable: m.unblock }); this.emit('hit', { point: hp, dmg: dealt, move: a.name, heavy: h.knock >= 20 }); }
+        if (this.hitTest(opp, hp, h.r || (m.spin ? 9 : 8))) { a.done[hi] = true; const dealt = opp.takeHit(h.dmg * this.dmgK * (this.rage ? 1.15 : 1), this, h.knock, { down: m.down, unblockable: m.unblock, point: hp, melee: true, limb: m.spin ? 'tail' : h.at }); this.emit('hit', { point: hp, dmg: dealt, move: a.name, heavy: h.knock >= 20 }); }
       });
       // jets on a limb (the rocket punch)
       if (m.jet && (pose.thrust || 0) > 0.3) this.emit('thrust', { ps: [this.wp(m.jet, [0, 1, -3])], dir: this.face().negate(), k: pose.thrust });
@@ -292,7 +323,7 @@ export class Fighter {
         this.emit('quake', { p: c, r: m.qr, big: !m.at && m.qr > 50, col: m.sig ? (robot ? new THREE.Color(this.v.glow).toArray() : this.v.blood) : null });
         if (!m.at && m.dmg) {
           const dd = Math.max(0, Math.hypot(opp.pos.x - c.x, opp.pos.z - c.z) - opp.R);
-          if (dd < m.qr && opp.air < 8) { const dealt = opp.takeHit(m.dmg * this.dmgK * (1 - 0.5 * dd / m.qr), this, m.knock, { down: dd < m.qr * 0.4, unblockable: m.unblock }); this.emit('hit', { point: opp.pos.clone().setY(20), dmg: dealt, move: a.name, heavy: true }); }
+          if (dd < m.qr && opp.air < 8) { const dealt = opp.takeHit(m.dmg * this.dmgK * (1 - 0.5 * dd / m.qr), this, m.knock, { down: dd < m.qr * 0.4, unblockable: m.unblock, point: opp.pos.clone().setY(8), melee: true }); this.emit('hit', { point: opp.pos.clone().setY(20), dmg: dealt, move: a.name, heavy: true }); }
         }
         for (const b of world.buildings) if (b.alive && Math.hypot(b.x - c.x, b.z - c.z) < m.qr * 0.7 + Math.max(b.w, b.d) / 2) { if (world.collapse(b)) this.emit('smash', { b }); }
       }
@@ -304,6 +335,9 @@ export class Fighter {
     this.thrustK += (Math.max(pose.thrust || 0, this.dash > 0 ? 1 : 0) - this.thrustK) * Math.min(1, dt * 10);
     if (robot && this.thrustK > 0.15) { this.root.updateMatrixWorld(true); this.emit('thrust', { ps: this.j.nozzles.map((v) => this.j.chest.localToWorld(v.clone())), dir: new THREE.Vector3(0, -0.85, -0.52).transformDirection(this.j.chest.matrixWorld), k: this.thrustK }); }
     mv.addScaledVector(this.vel, dt); this.vel.multiplyScalar(Math.exp(-dt * 2.2));
+    // driven back hard: the feet skid over the ground
+    const vs = Math.hypot(this.vel.x, this.vel.z);
+    if (vs > 14 && this.air < 2 && this.alive && this.down <= 0 && (this.skidT = (this.skidT || 0) - dt) < 0) { this.skidT = 0.1; this.emit('skid', { ps: [this.wp('ankleL', [0, -2, 2]), this.wp('ankleR', [0, -2, 2])], power: Math.min(1.5, vs / 30), water: STAGE.water && this.pos.z < SHORE }); }
     this.pos.add(mv);
     const gv = Math.hypot(mv.x, mv.z) / Math.max(dt, 1e-4), g0 = this.gSpeed;
     this.gSpeed += (gv - this.gSpeed) * (1 - Math.exp(-dt * 7));
@@ -357,6 +391,14 @@ export class Fighter {
   animate(dt, act, opp) {
     const j = this.j, robot = this.kind === 'robot', T = {}, now = performance.now() / 1000;
     const set = (n, x = 0, y = 0, z = 0) => { T[n] = [x, y, z]; };
+    // reacting to a blow: snaps in fast, then eases off; the head whips a beat after the body
+    const re = this.re; let rk = 0, rh = 0;
+    if (re) {
+      re.t += dt; const t = re.t, a = 0.06, ah = 0.12;
+      rk = (t < a ? Math.sin(t / a * Math.PI / 2) : Math.exp(-(t - a) * re.dec)) * re.pow;
+      rh = (t < ah ? Math.sin(t / ah * Math.PI / 2) : Math.exp(-(t - ah) * re.dec * 0.9)) * re.pow;
+      if (t > 2.5) this.re = null;
+    }
     const sp = this.stepSp || 0, k = Math.min(1, sp / 2.5), g1 = Math.min(1, this.gait || 0), g2 = clamp(((this.gait || 0) - 1) / 3, 0, 1), ph = this.phase;
     // the settle spring: each footfall pushes the body down, it sinks a little and comes back up (heavier for the kaiju)
     { const w = robot ? 15 : 11, z = robot ? 0.55 : 0.5, n = Math.ceil(dt * w / 0.3), h = dt / n;
@@ -427,7 +469,7 @@ export class Fighter {
       const spin = this.act && this.act.m.spin ? 1 : 0;
       j.tail.forEach((b, i) => {
         const st = this.tailS[i];
-        const ty = -this.yawVel * 0.2 * (0.5 + i * 0.1) + Math.sin(now * 0.9 - i * 0.45) * (0.025 + 0.03 * k) + Math.sin(ph - i * 0.4) * 0.05 * k * g1 - (spin ? 0.12 : 0);
+        const ty = (re ? re.across * 0.35 * rk * (0.3 + i * 0.08) : 0) - this.yawVel * 0.2 * (0.5 + i * 0.1) + Math.sin(now * 0.9 - i * 0.45) * (0.025 + 0.03 * k) + Math.sin(ph - i * 0.4) * 0.05 * k * g1 - (spin ? 0.12 : 0);
         const tx = 0.02 * g1 + Math.sin(now * 0.6 - i * 0.4) * 0.012 + spin * 0.05 + (act.lean || 0) * 0.035 + g2 * 0.02 - sink * 0.012 * (i < 6 ? 1 : -0.6);
         const r = 1 - Math.exp(-dt * Math.max(1.5, 7 - i * 0.45));
         st[0] += (tx - st[0]) * r; st[1] += (ty - st[1]) * r; set('tail' + i, st[0], st[1], 0);
@@ -437,18 +479,22 @@ export class Fighter {
     if (crouch > 0) for (const [S, s] of [['L', -1], ['R', 1]]) { set('sh' + S, -0.9 * crouch, 0, s * 0.35 * crouch); set('el' + S, -0.5 * crouch, 0, 0); }
     // the action's pose overrides the walk where it says something
     for (const [key, v] of Object.entries(act)) if (Array.isArray(v)) T[key] = v;
-    // reacting to a blow: the body snaps back and twists, then recovers
-    this.hitT = (this.hitT ?? 9) + dt;
-    const hk = this.hitT < 0.9 ? Math.sin(Math.min(1, this.hitT / 0.12) * Math.PI / 2) * Math.exp(-this.hitT * 4) * (this.hitPow || 0.5) : 0;
-    let lean = (act.lean || 0) - 0.45 * hk + 0.55 * crouch + (this.down > 0 || !this.alive ? 0 : clamp(this.accLean, -0.12, 0.12) + g2 * (robot ? 0.16 : 0.12) - sink * 0.018), twist = (act.twist || 0) + 0.3 * hk * (this.hitSide || 1);
+    let lean = (act.lean || 0) + (re ? re.pitch * rk : 0) + 0.55 * crouch + (this.down > 0 || !this.alive ? 0 : clamp(this.accLean, -0.12, 0.12) + g2 * (robot ? 0.16 : 0.12) - sink * 0.018), twist = (act.twist || 0) + (re ? re.yaw * rk : 0);
     { const h = robot ? 'head' : 'neck'; if (T[h]) T[h] = [T[h][0] + sink * 0.03, T[h][1], T[h][2]]; for (const S of ['L', 'R']) if (T['sh' + S] && !(act['sh' + S])) T['sh' + S] = [T['sh' + S][0] - sink * 0.03, T['sh' + S][1], T['sh' + S][2]]; }
-    if (hk > 0) { const h = robot ? 'head' : 'neck'; if (T[h]) T[h] = [T[h][0] - 0.4 * hk, T[h][1] + 0.3 * hk * (this.hitSide || 1), T[h][2]]; }
-    if (T.spine) { T.spine = [T.spine[0] + lean, T.spine[1] + twist, T.spine[2]]; }
+    if (re && rk > 0.002) {
+      const h = robot ? 'head' : 'neck'; if (T[h]) T[h] = [T[h][0] + re.headP * rh, T[h][1] + re.headY * rh, T[h][2] + re.across * 0.2 * rh];
+      if (!robot && T.head) T.head = [T.head[0] + re.headP * 0.5 * rh, T.head[1] + re.headY * 0.4 * rh, T.head[2]];
+      if (!robot && T.jaw) T.jaw = [T.jaw[0] + 0.55 * rh, 0, 0];
+      // the arms fly out, the knee on the struck side gives
+      for (const [S, sg] of [['L', -1], ['R', 1]]) if (T['sh' + S] && !act['sh' + S]) T['sh' + S] = [T['sh' + S][0] - 0.45 * re.arm * rk, T['sh' + S][1], T['sh' + S][2] + sg * 0.55 * re.arm * rk];
+      if (re.knee && T['knee' + re.knee] && fall < 0.05) { const S = re.knee; T['knee' + S] = [T['knee' + S][0] + 0.75 * rk, 0, 0]; T['hip' + S] = [T['hip' + S][0] - 0.4 * rk, T['hip' + S][1], T['hip' + S][2]]; T['ankle' + S] = [T['ankle' + S][0] - 0.3 * rk, 0, T['ankle' + S][2]]; }
+    }
+    if (T.spine) { T.spine = [T.spine[0] + lean, T.spine[1] + twist, T.spine[2] + (re ? re.roll * rk : 0)]; }
     if (robot && T.chest) T.chest = [T.chest[0], T.chest[1] + twist * 0.5, T.chest[2]];
     // the kaiju's neck bends along its length: the base takes part of the motion
     if (!robot && T.neck) { const n = T.neck; T.neck0 = [n[0] * 0.5, n[1] * 0.45, n[2] * 0.5]; T.neck = [n[0] * 0.6, n[1] * 0.6, n[2] * 0.6]; }
     // place the body
-    this.root.position.set(this.pos.x, water + rootY - fall * 6, this.pos.z);
+    this.root.position.set(this.pos.x, water + rootY - fall * 6 - (re ? re.dip * rk : 0), this.pos.z);
     this.root.rotation.y = this.yaw + (this.spinYaw || 0);
     this.root.rotation.x += ((-fall * 1.45) - this.root.rotation.x) * Math.min(1, dt * (up >= 0 ? 3 : 5));
     // ease every joint toward its target; legs track tightly so the feet stay planted
