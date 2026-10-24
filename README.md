@@ -22,6 +22,9 @@ A giant robot and a kaiju fight in a harbour city at night, in the rain: **https
     Striker MK-V (light: back fins, a forearm blade; fast and fragile).
   - Kaiju: Abyssal (deep-sea, blue heat beam), Magmaw (lava veins glowing through cracked hide, rock armour, a snout horn,
     magma breath; biggest and slowest), Voltra (lean, tall crackling plates, a crest of blades, thunder breath; fastest).
+  - Each has a signature move of its own (key **T**, gamepad LT): Sentinel's thruster uppercut 推進升龍拳, Bulwark's
+    ground-splitting double fist 斷層鐵拳, Striker's four-slash blade flurry 疾風連斬, Abyssal's ring of light 深淵脈衝,
+    Magmaw's line of lava geysers 熔岩噴發, Voltra's lightning called down from the sky 雷暴召喚. The AI uses them from the right range.
   - Each variant has its own health, speed, move tempo and damage, tuned with headless AI-vs-AI runs of every pairing.
 - **The fight**: punches, uppercut, kick, elbow, two-fisted hammer, a jab-cross-uppercut combo, a jet-assisted rocket
   punch, block, dash and plasma cannon against claw, two-handed rake, bite, headbutt, stomp, tail sweep, a running charge, acid

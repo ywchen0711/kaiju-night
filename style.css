@@ -72,6 +72,7 @@ h2 { font-size: clamp(40px, 7vw, 76px); }
 .cd.sup i { background: var(--amber); }
 .cd.sup.ready { border-color: var(--amber); color: #fff3c4; }
 .btns button.sup { border-color: var(--amber); }
+.btns button.sig { border-color: #e24a8a; }
 #help { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); width: max-content; max-width: calc(100% - 32px); text-align: center; font: 12px 'Noto Sans TC', sans-serif; color: var(--dim); text-shadow: 0 1px 3px #000; }
 #help b { color: var(--ink); font-weight: 700; }
 

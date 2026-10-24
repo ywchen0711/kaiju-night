@@ -7,9 +7,9 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { buildWorld, SHORE, STAGE } from './world.js?v=4';
 import { ROBOTS, KAIJUS, STAGES, resolve } from './roster.js?v=1';
 import { makeFx } from './fx.js?v=6';
-import { Fighter, think } from './fighters.js?v=7';
+import { Fighter, think } from './fighters.js?v=8';
 import { Audio } from './audio.js?v=3';
-import { T, has, getLang, setLang, applyDom } from './i18n.js?v=4';
+import { T, has, getLang, setLang, applyDom } from './i18n.js?v=5';
 applyDom();
 
 const $ = (s) => document.querySelector(s);
@@ -111,6 +111,7 @@ function clampCam(pos, look) {
 // ------------------------------------------------------------------ the fight
 let robot, kaiju, mode = 'title', pilot = null, endT = 0, slow = 1, slowT = 0, shake = 0, flash = 0, hurt = 0, fightT = 0;
 const shots = [];   // plasma bolts and missiles in flight
+const bolts = [];   // lightning from Voltra's storm, fading
 // the kaiju's heat beam: a white-hot core inside a blue halo, redrawn every frame it fires
 const beamG = new THREE.CylinderGeometry(1, 1, 1, 18, 1, true); beamG.translate(0, 0.5, 0);
 const beamMesh = new THREE.Group(), beamCore = new THREE.Mesh(beamG, new THREE.MeshBasicMaterial({ color: 0xc8f4ff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -152,6 +153,8 @@ function handleEvents(f, opp) {
     switch (e.type) {
       case 'attack':
         if (e.super && mode !== 'title') { banner(T(has(e.name + '_' + f.v.id) ? e.name + '_' + f.v.id : e.name), f); director.super(f, e.name); }
+        if (e.sig && mode !== 'title') banner(T('sig_' + f.v.id), f, T('sigOf'));
+        if (e.sig && f.v.id === 'voltra') { Audio.roar(2, 1.3); break; }
         if (e.name === 'beam') { Audio.charge(); Audio.roar(1.4, 1.25); break; }
         if (e.name === 'quake') { Audio.roar(1.6, 0.9); break; }
         if (f.kind === 'robot') { Audio.servo(); if (e.name === 'plasma' || e.super) Audio.charge(); else Audio.whoosh(); }
@@ -184,8 +187,23 @@ function handleEvents(f, opp) {
         shake = Math.max(shake, 0.35); break; }
       case 'quake': {
         if (onFoot && human.alive && Math.hypot(human.pos.x - e.p.x, human.pos.z - e.p.z) < e.r * 0.45) killHuman('blast');
-        fx.shockwave(e.p, e.r * (e.big ? 1.4 : 1), e.big ? [0.55, 0.85, 1] : [0.7, 0.9, 1]); Audio.explosion(e.big ? 1.6 : 1.1, camDist(e.p)); Audio.step(2.5, camDist(e.p));
+        fx.shockwave(e.p, e.r * (e.big ? 1.4 : 1), e.col || (e.big ? [0.55, 0.85, 1] : [0.7, 0.9, 1])); Audio.explosion(e.big ? 1.6 : 1.1, camDist(e.p)); Audio.step(2.5, camDist(e.p));
         shake = Math.max(shake, e.big ? 2.2 : 1.5); flash = Math.max(flash, 0.22); if (e.big) slowmo(0.35, 0.6); break; }
+      // Magmaw's eruption: a geyser of lava and burning rock out of the street
+      case 'erupt': {
+        const p = e.p, d = camDist(p);
+        for (let i = 0; i < 26; i++) fx.glow.add({ x: p.x + rnd(-4, 4), y: rnd(0, 4), z: p.z + rnd(-4, 4), vx: rnd(-6, 6), vy: rnd(30, 70), vz: rnd(-6, 6), life: rnd(0.8, 1.6), size: rnd(6, 13), grow: 0.8, color: [1, 0.5, 0.12], cool: [0.35, 0.05, 0], alpha: 0.9, grav: 40, drag: 0.4 });
+        fx.explosion(p.clone().setY(3), 0.7); fx.dust(p.x, p.z, 1.2); fx.fire(p.x + rnd(-3, 3), p.z + rnd(-3, 3), 1, rnd(14, 26));
+        bigHit(p.clone().setY(8), 0.8); Audio.explosion(0.9, d); Audio.step(1.6, d); shake = Math.max(shake, Math.min(1.2, 90 / d)); dangerAt(p, 13, 'blast'); break; }
+      // Voltra's lightning: a jagged bolt out of the sky, a flash, a scorch mark
+      case 'bolt': {
+        const p = e.p, d = camDist(p), pts = []; let q = p.clone().add(V(rnd(-60, 60), 420, rnd(-60, 60)));
+        for (let i = 0; i <= 14; i++) { const k = i / 14; pts.push(q.clone().lerp(p, k).add(i && i < 14 ? V(rnd(-9, 9), 0, rnd(-9, 9)) : V())); }
+        const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: new THREE.Color(f.v.beam[0]), transparent: true, fog: false, blending: THREE.AdditiveBlending }));
+        scene.add(line); bolts.push({ line, t: 0.45 });
+        fx.sparks(p.clone().setY(1), 50, [0.8, 0.7, 1]); fx.glow.add({ x: p.x, y: 3, z: p.z, vx: 0, vy: 0, vz: 0, life: 0.4, size: 40, grow: 1, color: [0.7, 0.6, 1], alpha: 0.8 }); fx.dust(p.x, p.z, 0.8); fx.fire(p.x, p.z, 1, rnd(6, 12));
+        hitLight.color.setHex(f.v.beam[2]); bigHit(p.clone().setY(20), 0.9); setTimeout(() => hitLight.color.setHex(0xffc080), 300);
+        flash = Math.max(flash, 0.3); Audio.zap(); Audio.thunder(Math.max(0.6, d / 200)); shake = Math.max(shake, Math.min(1, 70 / d)); dangerAt(p, 11, 'blast'); break; }
       case 'land': fx.dust(e.p.x, e.p.z, 1.1 * e.power); Audio.step(1.5 * e.power, camDist(e.p)); shake = Math.max(shake, Math.min(0.9, 60 / camDist(e.p))); break;
       case 'thrust': for (const p of e.ps) fx.thrust(p, e.dir, e.k); break;
       case 'breathe': for (const p of e.ps) for (let i = 0; i < 5; i++) fx.smoke.add({ x: p.x, y: p.y, z: p.z, vx: e.dir.x * rnd(5, 9) + rnd(-1, 1), vy: e.dir.y * rnd(5, 9) + rnd(-0.5, 1), vz: e.dir.z * rnd(5, 9) + rnd(-1, 1), life: rnd(1.6, 2.6), size: rnd(1.5, 3), grow: 3.5, color: [0.42, 0.45, 0.48], alpha: 0.16, drag: 1.2, fadeIn: 0.2 }); break;
@@ -240,8 +258,8 @@ function updateMissile(s, i, dt) {
 
 // the special move's name across the screen
 let bannerT = 0;
-function banner(text, f) {
-  const b = $('#banner'); b.className = f.kind; b.style.setProperty('--kc', f.v.css || '#3ad8ff'); $('#bnName').textContent = text; $('#bnWho').textContent = T(f.v.name) + ' ' + T('superOf');
+function banner(text, f, of = T('superOf')) {
+  const b = $('#banner'); b.className = f.kind; b.style.setProperty('--kc', f.v.css || '#3ad8ff'); $('#bnName').textContent = text; $('#bnWho').textContent = T(f.v.name) + ' ' + of;
   b.hidden = false; b.style.animation = 'none'; void b.offsetWidth; b.style.animation = ''; clearTimeout(bannerT); bannerT = setTimeout(() => { b.hidden = true; }, 2600);
 }
 
@@ -375,8 +393,8 @@ addEventListener('pointermove', (e) => {
 const keys = new Set(); let gp = null;
 addEventListener('keydown', (e) => { if (e.repeat) return; keys.add(e.code); if (mode === 'pilot') pressed(e.code); if (e.code === 'Escape' && mode !== 'title') toTitle(); if (e.code === 'KeyM') toggleMute(); });
 addEventListener('keyup', (e) => keys.delete(e.code));
-const ROBOT_KEYS = { KeyJ: 'jab', KeyK: 'cross', KeyL: 'upper', KeyI: 'kick', KeyU: 'elbow', KeyO: 'hammer', KeyH: 'combo', KeyG: 'rocket', KeyQ: 'plasma', KeyE: 'missiles', KeyF: 'blade', KeyC: 'backstep' };
-const KAIJU_KEYS = { KeyJ: 'swipe', KeyK: 'bite', KeyL: 'tail', KeyI: 'charge', KeyU: 'rake', KeyO: 'headbutt', KeyH: 'stomp', KeyG: 'pounce', KeyQ: 'acid', KeyR: 'roar', KeyE: 'beam', KeyF: 'quake', KeyC: 'hop' };
+const ROBOT_KEYS = { KeyJ: 'jab', KeyK: 'cross', KeyL: 'upper', KeyI: 'kick', KeyU: 'elbow', KeyO: 'hammer', KeyH: 'combo', KeyG: 'rocket', KeyQ: 'plasma', KeyE: 'missiles', KeyF: 'blade', KeyC: 'backstep', KeyT: 'sig' };
+const KAIJU_KEYS = { KeyJ: 'swipe', KeyK: 'bite', KeyL: 'tail', KeyI: 'charge', KeyU: 'rake', KeyO: 'headbutt', KeyH: 'stomp', KeyG: 'pounce', KeyQ: 'acid', KeyR: 'roar', KeyE: 'beam', KeyF: 'quake', KeyC: 'hop', KeyT: 'sig' };
 function pressed(code) {
   const map = pilot === robot ? ROBOT_KEYS : KAIJU_KEYS;
   if (map[code]) pilot.start(map[code]);
@@ -396,7 +414,8 @@ function pilotInput() {
     [0, 1, 2, 3].forEach((k) => { if (b[k] && !prev[k]) pilot.start(map[k]); });
     if (b[5] && !prev[5]) pilot.start(pilot === robot ? 'plasma' : 'acid');
     if (b[7] && !prev[7]) pressed('ShiftLeft');
-    if (b[6] && !prev[6] && pilot === kaiju) pilot.start('roar');
+    if (b[6] && !prev[6]) pilot.start('sig');
+    if (b[8] && !prev[8] && pilot === kaiju) pilot.start('roar');
     // d-pad: up and down for the two special moves, left to back off, right for the rocket punch / pounce; stick clicks for the combo and the hammer / stomp
     [[12, 'KeyE'], [13, 'KeyF'], [14, 'KeyC'], [15, 'KeyG'], [10, 'KeyH'], [11, 'KeyO']].forEach(([k, c]) => { if (b[k] && !prev[k]) pressed(c); });
     block = block || b[4]; gp = b;
@@ -475,8 +494,8 @@ function hud() {
   $('#hpRt').textContent = Math.ceil(robot.hp); $('#hpKt').textContent = Math.ceil(kaiju.hp);
   for (const [f, id] of [[robot, '#mtR'], [kaiju, '#mtK']]) { const el = $(id); el.style.width = f.meter + '%'; el.parentNode.classList.toggle('full', f.meter >= 100); }
   if (pilot) {
-    const list = pilot === robot ? [['plasma', 'cdPlasma', 7], ['rocket', 'cdRocket', 5], ['dash', 'cdDash', 2.5], ['missiles', 'cdMissiles', 6, 1], ['blade', 'cdBlade', 6, 1]] : [['acid', 'cdAcid', 6], ['pounce', 'cdPounce', 7], ['charge', 'cdCharge', 4.5], ['roar', 'cdRoar', 9], ['beam', 'cdBeam', 6, 1], ['quake', 'cdQuake', 6, 1]];
-    $('#cds').innerHTML = list.map(([k, key, max, sup]) => { const n = T(key); const c = pilot.cd[k] || 0, fr = sup ? Math.min(pilot.meter / 100, 1 - c / max) : 1 - c / max; return `<span class="cd${fr >= 1 ? ' ready' : ''}${sup ? ' sup' : ''}"><i style="width:${fr * 100}%"></i>${n}</span>`; }).join('');
+    const list = pilot === robot ? [['plasma', 'cdPlasma', 7], ['rocket', 'cdRocket', 5], ['dash', 'cdDash', 2.5], ['sig', 'cdSig', 9], ['missiles', 'cdMissiles', 6, 1], ['blade', 'cdBlade', 6, 1]] : [['acid', 'cdAcid', 6], ['sig', 'cdSig', 9], ['pounce', 'cdPounce', 7], ['charge', 'cdCharge', 4.5], ['roar', 'cdRoar', 9], ['beam', 'cdBeam', 6, 1], ['quake', 'cdQuake', 6, 1]];
+    $('#cds').innerHTML = list.map(([k, key, max, sup]) => { const n = key === 'cdSig' ? 'T ' + T('sig_' + pilot.v.id) : T(key); const c = pilot.cd[k] || 0, fr = sup ? Math.min(pilot.meter / 100, 1 - c / max) : 1 - c / max; return `<span class="cd${fr >= 1 ? ' ready' : ''}${sup ? ' sup' : ''}"><i style="width:${fr * 100}%"></i>${n}</span>`; }).join('');
   } else $('#cds').innerHTML = '';
   const t = Math.floor(fightT); $('#clock').textContent = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 }
@@ -530,6 +549,7 @@ function frame() {
   if (Math.abs(camera.fov - f.fov) > 0.05) { camera.fov += (f.fov - camera.fov) * (cut ? 1 : Math.min(1, rdt * 3)); camera.updateProjectionMatrix(); }
   shake = Math.max(0, shake - rdt * 2.2); flash = Math.max(0, flash - rdt * 1.5); hurt = Math.max(0, hurt - rdt * 0.8);
   hitLight.intensity *= Math.exp(-rdt * 9);
+  for (let i = bolts.length - 1; i >= 0; i--) { const b = bolts[i]; b.t -= rdt; b.line.material.opacity = Math.max(0, b.t / 0.45) * (0.6 + 0.4 * Math.random()); if (b.t <= 0) { scene.remove(b.line); b.line.geometry.dispose(); b.line.material.dispose(); bolts.splice(i, 1); } }
   beamOn -= rdt; beamMesh.visible = beamOn > 0; if (!beamMesh.visible) beamLight.intensity *= Math.exp(-rdt * 12);
   // the world
   W.update(dt, camera, mid()); W.updateRuins(dt); placeLights(); fx.update(dt, t);

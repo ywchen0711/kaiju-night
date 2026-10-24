@@ -4,9 +4,9 @@
 export const ROBOTS = {
   sentinel: { id: 'sentinel', name: 'robotName', paint: 0x51606e, paint2: 0x2e3640, glow: 0x6fd8ff, num: '04', label: 'SENTINEL', hp: 1700, speed: 1, tempo: 1.06, dmg: 1.1, R: 13, pad: 1, fist: 1 },
   // a slow, armoured brawler: wide pauldrons, huge fists, forearm shields, a crest
-  bulwark: { id: 'bulwark', name: 'bulwarkName', paint: 0x8c3b22, paint2: 0x2a2522, glow: 0xffb347, num: '09', label: 'BULWARK', hp: 1950, speed: 0.86, tempo: 1.14, dmg: 1.12, R: 15, pad: 1.3, fist: 1.24 },
+  bulwark: { id: 'bulwark', name: 'bulwarkName', paint: 0x8c3b22, paint2: 0x2a2522, glow: 0xffb347, num: '09', label: 'BULWARK', hp: 1950, speed: 0.86, tempo: 1.14, dmg: 1.16, R: 15, pad: 1.3, fist: 1.24 },
   // a light, fast duellist: slim shoulders, back fins, a blade on the right forearm
-  striker: { id: 'striker', name: 'strikerName', paint: 0xc9d0d6, paint2: 0x1c3766, glow: 0x6dffc4, num: '11', label: 'STRIKER', hp: 1560, speed: 1.24, tempo: 0.92, dmg: 0.98, R: 12, pad: 0.78, fist: 0.9 },
+  striker: { id: 'striker', name: 'strikerName', paint: 0xc9d0d6, paint2: 0x1c3766, glow: 0x6dffc4, num: '11', label: 'STRIKER', hp: 1480, speed: 1.24, tempo: 0.92, dmg: 0.98, R: 12, pad: 0.78, fist: 0.9 },
 };
 export const KAIJUS = {
   abyssal: { id: 'abyssal', name: 'kaijuName', glow: 0x4ad8ff, mouth: 0x3ad8ff, eye: 0xffa040, skin: 0xffffff, belly: 0x8a8476, veins: 0, bulk: 1, tail: 1, plateW: 1, plateH: 1, horn: 1,

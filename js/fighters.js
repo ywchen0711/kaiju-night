@@ -79,6 +79,41 @@ const KAIJU_MOVES = {
       [0.58, { rise: 8, lean: 0.25, shL: [-1.8, 0, -0.4], shR: [-1.8, 0, 0.4], jaw: [0.8, 0, 0] }], [0.62, { dip: 11, lean: 0.45, shL: [-1.2, 0, -0.3], shR: [-1.2, 0, 0.3], elL: [-0.2, 0, 0], elR: [-0.2, 0, 0], fingL: [0.5, 0, 0], fingR: [0.5, 0, 0], jaw: [0.6, 0, 0] }],
       [0.8, { dip: 7, lean: 0.3, jaw: [0.9, 0, 0], neck: [-0.3, 0, 0] }], [1, {}]] },
 };
+// ------------------------------------------------------------------ signature moves: one of its own for every jaeger and kaiju (key T)
+// erupt [p0, p1, n, spacing]: geysers of lava burst one after another along the ground toward the opponent
+// bolts [p0, p1, n]: lightning strikes called down onto (and around) the opponent
+const SIGNATURE = {
+  // Sentinel: the back thrusters fire it up into a rising uppercut that leaves the ground
+  sentinel: { dur: 1.6, sig: true, hit: [0.4, 0.62], at: 'fistR', hitR: 12, dmg: 115, knock: 30, lift: true, down: 0.35, land: 0.84, track: 0.6,
+    keys: [[0, {}], [0.24, { dip: 9, lean: 0.32, shR: [0.5, 0, 0.3], elR: [-2.2, 0, 0], shL: [-1.1, 0, -0.3], elL: [-1.8, 0, 0], twist: 0.55, thrust: 0.7 }],
+      [0.42, { shR: [-2.8, 0, -0.2], elR: [-0.5, 0, 0], shL: [-0.4, 0, -0.5], elL: [-1.2, 0, 0], dip: -3, lean: -0.3, twist: -0.55, fwd: 75, thrust: 1, rise: 12 }],
+      [0.62, { shR: [-2.9, 0, 0], elR: [-0.3, 0, 0], rise: 17, lean: -0.35, thrust: 0.8 }], [0.84, { rise: 1, dip: 8, lean: 0.25, thrust: 0.2 }], [1, {}]] },
+  // Bulwark: both fists raised high, a thruster hop, and a smash into the street that splits it open
+  bulwark: { dur: 2.0, sig: true, quake: 0.52, qr: 60, dmg: 125, knock: 30, down: 0.5, track: 0.5,
+    keys: [[0, {}], [0.3, { shL: [-3.0, 0, 0.4], shR: [-3.0, 0, -0.4], elL: [-0.8, 0, 0], elR: [-0.8, 0, 0], lean: -0.3, dip: 4, rise: 7, thrust: 0.7 }],
+      [0.5, { shL: [-0.7, 0, 0.25], shR: [-0.7, 0, -0.25], elL: [-0.1, 0, 0], elR: [-0.1, 0, 0], lean: 0.75, dip: 14, fwd: 12 }],
+      [0.78, { shL: [-0.7, 0, 0.25], shR: [-0.7, 0, -0.25], elL: [-0.1, 0, 0], elR: [-0.1, 0, 0], lean: 0.6, dip: 11 }], [1, {}]] },
+  // Striker: a dash in and four slashes of the forearm blade, the last one the hardest
+  striker: { dur: 1.7, sig: true, track: 0.8,
+    hits: [{ t: [0.16, 0.27], at: 'fistR', dmg: 19, knock: 4, r: 13 }, { t: [0.3, 0.42], at: 'fistR', dmg: 19, knock: 5, r: 13 }, { t: [0.52, 0.62], at: 'fistR', dmg: 21, knock: 6, r: 13 }, { t: [0.72, 0.84], at: 'fistR', dmg: 36, knock: 24, r: 14 }],
+    keys: [[0, {}], [0.12, { shR: [-1.2, 0.8, 1.2], elR: [-0.6, 0, 0], twist: 0.6, fwd: 70, thrust: 0.7 }], [0.24, { shR: [-1.4, -0.8, -0.6], elR: [-0.2, 0, 0], twist: -0.6, fwd: 30 }],
+      [0.36, { shR: [-2.6, 0, 0.3], elR: [-0.4, 0, 0], twist: 0.2, lean: -0.2 }], [0.5, { shR: [-0.8, 0, 0], elR: [-0.1, 0, 0], lean: 0.4, dip: 6, twist: 0 }],
+      [0.64, { shR: [-1.3, 0.9, 1.3], elR: [-0.5, 0, 0], twist: 0.75, fwd: 28, thrust: 0.5 }], [0.8, { shR: [-1.5, -0.9, -0.8], elR: [-0.1, 0, 0], twist: -0.85, lean: 0.25, fwd: 26 }], [1, {}]] },
+  // Abyssal: it rears up as light floods its plates, then slams down and the light bursts out of it in a ring
+  abyssal: { dur: 2.3, sig: true, quake: 0.56, qr: 58, dmg: 100, knock: 30, down: 0.5, unblock: true, charge: [0.5, 0.62],
+    keys: [[0, {}], [0.22, { lean: -0.35, neck: [-0.6, 0, 0], head: [-0.4, 0, 0], jaw: [1.0, 0, 0], shL: [-1.2, 0, -1.0], shR: [-1.2, 0, 1.0], fingL: [-0.8, 0, 0], fingR: [-0.8, 0, 0], dip: 2 }],
+      [0.5, { lean: -0.42, neck: [-0.65, 0, 0], head: [-0.45, 0, 0], jaw: [1.1, 0, 0], shL: [-1.3, 0, -1.1], shR: [-1.3, 0, 1.1], fingL: [-0.85, 0, 0], fingR: [-0.85, 0, 0], dip: 3 }],
+      [0.57, { lean: 0.38, dip: 10, neck: [0.3, 0, 0], jaw: [0.7, 0, 0], shL: [-0.6, 0, -0.5], shR: [-0.6, 0, 0.5], fingL: [0.6, 0, 0], fingR: [0.6, 0, 0] }], [0.8, { dip: 6, lean: 0.22 }], [1, {}]] },
+  // Magmaw: it drives both fists into the ground and the street erupts in a line of lava toward its enemy
+  magmaw: { dur: 2.6, sig: true, quake: 0.4, qr: 30, erupt: [0.42, 0.86, 6, 21], edmg: 36, charge: [0.3, 0.86],
+    keys: [[0, {}], [0.25, { lean: -0.3, neck: [-0.5, 0, 0], jaw: [0.9, 0, 0], shL: [-2.6, 0, -0.4], shR: [-2.6, 0, 0.4], elL: [-0.6, 0, 0], elR: [-0.6, 0, 0], fingL: [0.7, 0, 0], fingR: [0.7, 0, 0] }],
+      [0.4, { lean: 0.8, dip: 14, neck: [0.2, 0, 0], jaw: [0.6, 0, 0], shL: [-0.5, 0, -0.2], shR: [-0.5, 0, 0.2], elL: [-0.05, 0, 0], elR: [-0.05, 0, 0], fingL: [0.7, 0, 0], fingR: [0.7, 0, 0] }],
+      [0.86, { lean: 0.75, dip: 13, neck: [0.25, 0, 0], jaw: [0.8, 0, 0], shL: [-0.5, 0, -0.2], shR: [-0.5, 0, 0.2], elL: [-0.05, 0, 0], elR: [-0.05, 0, 0], fingL: [0.7, 0, 0], fingR: [0.7, 0, 0] }], [1, {}]] },
+  // Voltra: head thrown back, claws to the sky, it calls lightning down on its enemy
+  voltra: { dur: 2.7, sig: true, bolts: [0.34, 0.86, 5], bdmg: 29, charge: [0.15, 0.86],
+    keys: [[0, {}], [0.25, { lean: -0.45, neck: [-0.75, 0, 0], head: [-0.6, 0, 0], jaw: [1.1, 0, 0], shL: [-2.7, 0, -0.5], shR: [-2.7, 0, 0.5], elL: [-0.3, 0, 0], elR: [-0.3, 0, 0], fingL: [-0.85, 0, 0], fingR: [-0.85, 0, 0] }],
+      [0.86, { lean: -0.42, neck: [-0.7, 0.15, 0], head: [-0.55, 0, 0], jaw: [1.05, 0, 0], shL: [-2.6, 0, -0.6], shR: [-2.6, 0, 0.6], elL: [-0.35, 0, 0], elR: [-0.35, 0, 0], fingL: [-0.85, 0, 0], fingR: [-0.85, 0, 0] }], [1, {}]] },
+};
 function sampleKeys(keys, p) {
   let a = keys[0], b = keys[keys.length - 1];
   for (let i = 0; i < keys.length - 1; i++) if (p >= keys[i][0] && p <= keys[i + 1][0]) { a = keys[i]; b = keys[i + 1]; break; }
@@ -103,7 +138,7 @@ export class Fighter {
     this.pos = new THREE.Vector3(0, 0, kind === 'robot' ? 90 : -40); this.yaw = kind === 'robot' ? Math.PI : 0; this.yawVel = 0;
     this.vel = new THREE.Vector3(); this.speed = 0; this.phase = 0; this.act = null; this.stun = 0; this.down = 0; this.block = false; this.alive = true; this.dash = 0;
     this.R = v.R || (kind === 'robot' ? 13 : 24); this.cd = {}; this.lastStep = 0; this.events = []; this.ventT = rnd(4, 8); this.breatheT = rnd(1, 3);
-    this.moves = kind === 'robot' ? ROBOT_MOVES : KAIJU_MOVES; this.tempo = v.tempo;
+    this.moves = { ...(kind === 'robot' ? ROBOT_MOVES : KAIJU_MOVES), sig: SIGNATURE[v.id] }; this.tempo = v.tempo;
     // weight: joints move on damped springs (so limbs carry through and settle), the body sinks on each footfall
     this.jv = {}; this.bodyY = 0; this.bodyV = 0; this.gSpeed = 0; this.accLean = 0;
     this.meter = 25; this.air = 0; this.bladeK = 0; this.thrustK = 0;
@@ -126,8 +161,8 @@ export class Fighter {
     if (!m || !this.can() || (this.cd[name] || 0) > 0) return false;
     if (m.super) { if (this.meter < 100) return false; this.meter = 0; }
     this.act = { name, m, t: 0, hitDone: false, shotDone: false, fired: 0 };
-    this.cd[name] = { plasma: 7, acid: 6, roar: 9, charge: 4.5, tail: 3, backstep: 2.2, hop: 3, missiles: 6, blade: 6, beam: 6, quake: 6, hammer: 2, combo: 2.5, rocket: 5, stomp: 3, rake: 1.5, headbutt: 1.5, pounce: 7 }[name] || 0;
-    this.emit('attack', { name, super: !!m.super }); return true;
+    this.cd[name] = { plasma: 7, acid: 6, roar: 9, charge: 4.5, tail: 3, backstep: 2.2, hop: 3, missiles: 6, blade: 6, beam: 6, quake: 6, hammer: 2, combo: 2.5, rocket: 5, stomp: 3, rake: 1.5, headbutt: 1.5, pounce: 7, sig: 9 }[name] || 0;
+    this.emit('attack', { name, super: !!m.super, sig: !!m.sig }); return true;
   }
   // the opponent's body, as a vertical capsule
   hitTest(opp, p, r) { const dy = Math.max(10, Math.min(opp.kind === 'robot' ? 62 : 60, p.y)); const d = Math.hypot(p.x - opp.pos.x, p.z - opp.pos.z, (p.y - dy) * 0.6); return d < opp.R + r; }
@@ -202,6 +237,28 @@ export class Fighter {
         if (along > 0 && along < 110 && rel.clone().sub(dir.clone().multiplyScalar(along)).length() < 14 + along * 0.12) { const d = opp.takeHit(m.dps * this.dmgK * dt, this, 0.5); this.emit('burn', { point: opp.pos.clone().setY(40), dmg: d }); if (opp.stun > 0.3) opp.stun = 0.3; }
       }
       if (m.roar && !a.roared && p >= m.roar) { a.roared = true; this.emit('roar'); }
+      // lava: one geyser after another along the ground toward the opponent; each burns it if it is standing there
+      if (m.erupt) {
+        const [s0, s1, n, gap] = m.erupt, want = p < s0 ? 0 : Math.min(n, Math.floor((p - s0) / (s1 - s0) * n) + 1);
+        if (!a.eDir) a.eDir = toOpp.clone().normalize();
+        while ((a.fired || 0) < want) {
+          const k = a.fired++, q = this.pos.clone().addScaledVector(a.eDir, this.R + 14 + k * gap).setY(0);
+          this.emit('erupt', { p: q, k });
+          if (Math.hypot(opp.pos.x - q.x, opp.pos.z - q.z) < opp.R + 9 && opp.air < 10) { const d = opp.takeHit(m.edmg * this.dmgK, this, 14); this.emit('hit', { point: opp.pos.clone().setY(18), dmg: d, move: 'erupt', heavy: k === n - 1 }); }
+          for (const b of world.buildings) if (b.alive && Math.hypot(b.x - q.x, b.z - q.z) < 12 + Math.max(b.w, b.d) / 2) { if (world.collapse(b)) this.emit('smash', { b }); }
+        }
+      }
+      // lightning: each bolt lands where the opponent is about to be (or close by)
+      if (m.bolts) {
+        const [s0, s1, n] = m.bolts, want = p < s0 ? 0 : Math.min(n, Math.floor((p - s0) / (s1 - s0) * n) + 1);
+        while ((a.fired || 0) < want) {
+          const k = a.fired++, lead = opp.vel.clone().add(opp.face().multiplyScalar(opp.speed || 0)).multiplyScalar(0.4);
+          const q = opp.pos.clone().add(lead).add(new THREE.Vector3(rnd(-1, 1), 0, rnd(-1, 1)).multiplyScalar(k % 2 ? 16 : 6)).setY(0);
+          this.emit('bolt', { p: q, k });
+          if (Math.hypot(opp.pos.x - q.x, opp.pos.z - q.z) < opp.R + 6) { const d = opp.takeHit(m.bdmg * this.dmgK, this, 10, { down: k === n - 1 ? 0.3 : 0 }); this.emit('hit', { point: opp.pos.clone().setY(45), dmg: d, move: 'bolt', heavy: k === n - 1 }); }
+          for (const b of world.buildings) if (b.alive && Math.abs(q.x - b.x) < b.w / 2 + 4 && Math.abs(q.z - b.z) < b.d / 2 + 4) { if (world.collapse(b)) this.emit('smash', { b }); }
+        }
+      }
       // missile salvo: one launch after another from the hull pods
       if (m.salvo) {
         const [s0, s1, n] = m.salvo, want = p < s0 ? 0 : Math.min(n, Math.floor((p - s0) / (s1 - s0) * n) + 1);
@@ -232,7 +289,7 @@ export class Fighter {
       // a landing shockwave: knocks the opponent flat if it is a stomp, and brings down the buildings around
       if (m.quake !== undefined && !a.quaked && p >= m.quake) {
         a.quaked = true; const c = this.pos.clone().setY(0); this.bodyV -= robot ? 34 : 46;
-        this.emit('quake', { p: c, r: m.qr, big: !m.at && m.qr > 50 });
+        this.emit('quake', { p: c, r: m.qr, big: !m.at && m.qr > 50, col: m.sig ? (robot ? new THREE.Color(this.v.glow).toArray() : this.v.blood) : null });
         if (!m.at && m.dmg) {
           const dd = Math.max(0, Math.hypot(opp.pos.x - c.x, opp.pos.z - c.z) - opp.R);
           if (dd < m.qr && opp.air < 8) { const dealt = opp.takeHit(m.dmg * this.dmgK * (1 - 0.5 * dd / m.qr), this, m.knock, { down: dd < m.qr * 0.4, unblockable: m.unblock }); this.emit('hit', { point: opp.pos.clone().setY(20), dmg: dealt, move: a.name, heavy: true }); }
@@ -441,7 +498,7 @@ export class Fighter {
     } else {
       const a = this.act, roar = a && a.name === 'roar' ? 1 : 0, beam = a && a.name === 'beam';
       // acid and beam: before the breath a pulse of light climbs from the tail to the head (twice for the beam), then the whole back blazes
-      const ch = a && (a.name === 'acid' || beam) ? { p: Math.min(1, a.t / a.m.dur), w: beam ? a.m.windup : 0.3, e: beam ? a.m.beam[1] : 0.85 } : null;
+      const sigC = a && a.m.charge, ch = a && (a.name === 'acid' || beam || sigC) ? { p: Math.min(1, a.t / (a.m.dur * this.tempo)), w: beam ? a.m.windup : sigC ? sigC[0] : 0.3, e: beam ? a.m.beam[1] : sigC ? sigC[1] : 0.85 } : null;
       this.bands.forEach((m, i) => {
         let tgt = this.alive ? 0.9 + (1 - hpK) * 1.2 + roar * 3  : 0.05;
         if (ch) { const w = ch.p / ch.w, wv = beam ? (w * 2) % 1 : w; tgt = ch.p < ch.w ? 1.3 + 7 * Math.max(0, 1 - Math.abs(wv * 1.25 - i / 7) * 4) + w * 1.5 : ch.p < ch.e ? (beam ? 10 : 6) + Math.sin(now * 30 + i) * 0.8 : 2; }
@@ -461,6 +518,8 @@ export class Fighter {
 // It fights in phases so the bout has a rhythm: approach (with ranged pokes), a close exchange for a few seconds, then break
 // apart (a backstep or a hop) and circle at range, and when the meter is full, a special move from the right distance.
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
+const SIG_RANGE = { sentinel: [0, 40], bulwark: [0, 34], striker: [0, 60], abyssal: [0, 30], magmaw: [25, 140], voltra: [40, 260] };
+const trySig = (me, d, rate, dt) => { const r = SIG_RANGE[me.v.id]; if (r && d >= r[0] && d <= r[1] && Math.random() < dt * rate) me.start('sig'); };
 const SUPER_RANGE = { missiles: [30, 400], blade: [15, 110], beam: [25, 260], quake: [10, 100] };
 export function think(me, opp, dt) {
   const inp = { move: 0, strafe: 0 }; if (!me.alive || !opp.alive) return inp;
@@ -493,7 +552,7 @@ export function think(me, opp, dt) {
   if (robot && A.guard && oa && !oa.m.super && d < 30 && op < 0.55) me.block = true;
   switch (A.state) {
     case 'approach':
-      inp.move = 1; inp.strafe = A.circle * 0.25;
+      inp.move = 1; inp.strafe = A.circle * 0.25; trySig(me, d, 0.25, dt);
       if (robot) { if (d > 70 && Math.random() < dt * 0.22) me.start('plasma'); if (d > 20 && d < 70 && Math.random() < dt * 0.4) me.start('rocket'); if (d > 90 && Math.random() < dt * 0.4) me.dash = 0.5; }
       else if (d > 35 && d < 110 && Math.random() < dt * 0.18) me.start('pounce');
       else if (d > 60 && Math.random() < dt * 0.35) me.start('charge');
@@ -502,7 +561,7 @@ export function think(me, opp, dt) {
       else if (d < (robot ? 14 : 18)) { go('close'); A.len = rnd(6, 12); }
       break;
     case 'close': {
-      inp.move = d > 10 ? 0.6 : 0.1; inp.strafe = A.strafe * 0.4;
+      inp.move = d > 10 ? 0.6 : 0.1; inp.strafe = A.strafe * 0.4; trySig(me, d, 0.35, dt);
       if (robot) { if (!me.block && Math.random() < dt * 2.4) me.start(pick(['jab', 'jab', 'cross', 'upper', 'kick', 'cross', 'elbow', 'elbow', 'hammer', 'combo'])); }
       else if (Math.random() < dt * (me.rage ? 3.2 : 2.4)) me.start(pick(['swipe', 'swipe', 'bite', 'tail', 'bite', 'rake', 'rake', 'headbutt', 'headbutt', 'stomp']));
       const hurt = robot && (me.stun > 0.5 || me.down > 0);   // the robot backs off when it is getting hurt; the kaiju just gets angrier
@@ -514,7 +573,7 @@ export function think(me, opp, dt) {
       break; }
     case 'apart':
       if (A.retreat && me.start(A.retreat)) A.retreat = null; else if (A.st > 1) A.retreat = null;
-      inp.move = d < A.range - 12 ? -0.85 : d > A.range + 25 ? 0.6 : 0; inp.strafe = A.circle * 0.85;
+      inp.move = d < A.range - 12 ? -0.85 : d > A.range + 25 ? 0.6 : 0; inp.strafe = A.circle * 0.85; trySig(me, d, 0.2, dt);
       if (robot) { if (d > 40 && Math.random() < dt * 0.15) me.start('plasma'); if (d > 20 && d < 75 && Math.random() < dt * 0.12) me.start('rocket'); }
       else { if (A.taunt && me.start('roar')) A.taunt = false; if (Math.random() < dt * 0.06) me.start('roar'); if (d < 100 && Math.random() < dt * 0.2) me.start('acid'); if (d > 35 && d < 110 && Math.random() < dt * 0.12) me.start('pounce'); if (d > 30 && d < 110 && Math.random() < dt * 0.1 && me.start('charge')) go('approach'); }
       if (A.st > A.len) go(ready ? 'super' : 'approach');
