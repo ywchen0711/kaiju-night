@@ -102,8 +102,8 @@ export function makeFx(scene, q) {
       if (Math.random() < 0.3 * k) smoke.add({ x: p.x, y: p.y, z: p.z, vx: dir.x * 20, vy: dir.y * 20 + 2, vz: dir.z * 20, life: rnd(1, 2), size: rnd(4, 7), grow: 3, color: [0.3, 0.3, 0.32], alpha: 0.25, drag: 1.5 });
     },
     // a missile in flight: a bright head and a smoke trail
-    trail(p) {
-      glow.add({ x: p.x, y: p.y, z: p.z, vx: 0, vy: 0, vz: 0, life: 0.12, size: 4, color: [1, 0.7, 0.35], alpha: 1 });
+    trail(p, color = [1, 0.7, 0.35]) {
+      glow.add({ x: p.x, y: p.y, z: p.z, vx: 0, vy: 0, vz: 0, life: 0.12, size: 4, color, alpha: 1 });
       smoke.add({ x: p.x, y: p.y, z: p.z, vx: rnd(-1, 1), vy: rnd(0, 1.5), vz: rnd(-1, 1), life: rnd(1.4, 2.4), size: rnd(1.6, 2.6), grow: 2.5, color: [0.5, 0.5, 0.52], alpha: 0.35, drag: 0.8 });
     },
     // a fire that keeps burning (in a ruin, on the street)

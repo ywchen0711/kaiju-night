@@ -15,8 +15,9 @@ A giant robot and a kaiju fight in a harbour city at night, in the rain: **https
   fold-out arm blade, and pauldrons and thigh plates that follow the limbs. Detail: belly scutes, bony spikes on the
   tail, thighs and forearms, horns, gill slits and old wounds that glow brighter as the kaiju gets hurt; antennas, hoses,
   vents and back thrusters on the jaeger.
-- **The fight**: punches, uppercut, kick, block, dash and plasma cannon against claw, bite, tail sweep, charge, acid
-  breath and roar. Buildings in the way collapse into dust and fire. The AI fights in phases (close in, trade blows,
+- **The fight**: punches, uppercut, kick, elbow, two-fisted hammer, a jab-cross-uppercut combo, a jet-assisted rocket
+  punch, block, dash and plasma cannon against claw, two-handed rake, bite, headbutt, stomp, tail sweep, charge, acid
+  breath, a volley of glowing spines torn off its back, and roar. Every fight starts from random positions. Buildings in the way collapse into dust and fire. The AI fights in phases (close in, trade blows,
   now and then break apart with a thruster backstep or a hop and circle at range, come back), so they are not always in a clinch. Knockdowns are rare, and getting up takes a while: roll up to a kneel, push up to standing.
 - **Special moves** (a power meter fills from dealing and taking damage): the jaeger's missile barrage (飛彈齊射) and
   a thruster leap into a plasma-blade slash (電漿劍 · 天降斬); the kaiju's atomic heat beam (原子熱線), which sweeps

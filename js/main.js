@@ -5,10 +5,10 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { buildWorld, SHORE } from './world.js?v=2';
-import { makeFx } from './fx.js?v=3';
-import { Fighter, think } from './fighters.js?v=4';
+import { makeFx } from './fx.js?v=4';
+import { Fighter, think } from './fighters.js?v=5';
 import { Audio } from './audio.js?v=2';
-import { T, getLang, setLang, applyDom } from './i18n.js?v=1';
+import { T, getLang, setLang, applyDom } from './i18n.js?v=2';
 applyDom();
 
 const $ = (s) => document.querySelector(s);
@@ -103,10 +103,22 @@ let beamOn = 0, scorchT = 0;
 function newFight() {
   for (const f of [robot, kaiju]) if (f) scene.remove(f.root);
   robot = new Fighter('robot', scene); kaiju = new Fighter('kaiju', scene);
-  // they start far apart: the kaiju wading in from the harbour, the jaeger walking down to meet it
-  robot.pos.set(rnd(-20, 20), 0, 150); robot.yaw = Math.PI;
-  kaiju.pos.set(rnd(-40, 40), 0, -215); kaiju.yaw = 0;
+  // they start far apart, somewhere different every fight: often the kaiju wading in from the harbour, sometimes already in the streets
+  const [rp, kp] = startSpots(); robot.pos.copy(rp); kaiju.pos.copy(kp);
+  robot.yaw = Math.atan2(kp.x - rp.x, kp.z - rp.z); kaiju.yaw = Math.atan2(rp.x - kp.x, rp.z - kp.z);
   shots.length = 0; endT = 0; fightT = 0; slow = 1; beamOn = 0; director.next = null; director.cut('wide');
+}
+function startSpots() {
+  const clear = (p, r) => !W.buildings.some((b) => b.alive && !b.pole && Math.abs(p.x - b.x) < b.w / 2 + r && Math.abs(p.z - b.z) < b.d / 2 + r);
+  let best = null;
+  for (let i = 0; i < 300; i++) {
+    const K = V(rnd(-300, 300), 0, Math.random() < 0.5 ? rnd(-225, -90) : rnd(-90, 280)), a = rnd(0, Math.PI * 2), d = rnd(260, 380);
+    const Rp = K.clone().add(V(Math.sin(a) * d, 0, Math.cos(a) * d));
+    if (Math.abs(Rp.x) > 400 || Rp.z < SHORE + 10 || Rp.z > 480) continue;
+    best = best || [Rp, K];
+    if ((K.z < SHORE || clear(K, 26)) && clear(Rp, 16)) return [Rp, K];
+  }
+  return best || [V(0, 0, 150), V(0, 0, -215)];
 }
 const fighters = () => [robot, kaiju];
 const mid = () => robot.pos.clone().add(kaiju.pos).multiplyScalar(0.5);
@@ -137,6 +149,10 @@ function handleEvents(f, opp) {
         break; }
       case 'shoot': shots.push({ p: e.from.clone(), dir: e.dir, dmg: e.dmg, life: 2, from: f }); Audio.zap(); bigHit(e.from, 0.5); break;
       case 'breath': fx.acid(e.from, e.dir); break;
+      case 'spine': {
+        const tgt = e.target.pos.clone().setY(e.target.kind === 'robot' ? 42 : 40).add(V(rnd(-10, 10), rnd(-14, 10), rnd(-10, 10))), Tf = 1.0 + e.from.distanceTo(tgt) / 420;
+        const v = tgt.sub(e.from).divideScalar(Tf); v.y += 0.5 * 55 * Tf;
+        shots.push({ spine: true, p: e.from.clone(), v, life: 4, target: e.target, from: f }); fx.sparks(e.from, 8, [0.4, 0.9, 1]); if (Math.random() < 0.5) Audio.whoosh(); break; }
       case 'missile': {
         const side = V(rnd(-1, 1), 0, rnd(-1, 1)).multiplyScalar(18);
         shots.push({ missile: true, p: e.from.clone(), v: e.dir.clone().multiplyScalar(70).add(side), sp: 90, t: 0, life: 4, target: e.target, from: f, jit: V(rnd(-9, 9), rnd(-14, 12), rnd(-9, 9)) });
@@ -178,6 +194,7 @@ function handleEvents(f, opp) {
 function updateShots(dt) {
   for (let i = shots.length - 1; i >= 0; i--) {
     if (shots[i].missile) { updateMissile(shots[i], i, dt); continue; }
+    if (shots[i].spine) { updateSpine(shots[i], i, dt); continue; }
     const s = shots[i], step = 320 * dt; s.life -= dt; fx.plasma(s.p, s.dir);
     let boom = s.life <= 0 || s.p.y < 0.5;
     const target = s.from === robot ? kaiju : robot;
@@ -204,6 +221,20 @@ function updateMissile(s, i, dt) {
   }
   fx.trail(s.p);
   if (boom) { fx.explosion(s.p, 0.45); Audio.explosion(0.5, camDist(s.p)); bigHit(s.p, 0.5); dangerAt(s.p, 9, 'blast'); shots.splice(i, 1); }
+}
+
+// a spine: a glowing shard thrown in an arc
+function updateSpine(s, i, dt) {
+  const target = s.target; s.life -= dt; s.v.y -= 55 * dt;
+  let boom = s.life <= 0, hit = false;
+  for (let k = 0; k < 3 && !boom; k++) {
+    s.p.addScaledVector(s.v, dt / 3);
+    if (s.p.y < 0.5) boom = true;
+    else if (target.alive && target.hitTest(target, s.p, 4)) { const d = target.takeHit(15, s.from, 4); s.from.emit('hit', { point: s.p.clone(), dmg: d, move: 'spine', heavy: false }); boom = hit = true; }
+    else if (inBuilding(s.p, 0) && s.p.y < inBuilding(s.p, 0).h) boom = true;
+  }
+  fx.trail(s.p, [0.4, 0.9, 1]);
+  if (boom) { fx.sparks(s.p, 24, [0.4, 0.9, 1]); fx.glow.add({ x: s.p.x, y: s.p.y, z: s.p.z, vx: 0, vy: 2, vz: 0, life: 0.5, size: 18, grow: 1.5, color: [0.3, 0.8, 1], alpha: 0.8 }); if (!hit) { fx.dust(s.p.x, s.p.z, 0.35); Audio.thud(0.5); } bigHit(s.p, 0.35); dangerAt(s.p, 7, 'blast'); shots.splice(i, 1); }
 }
 
 // the special move's name across the screen
@@ -274,7 +305,11 @@ function placeHuman() {
   // somewhere on a street behind the jaeger, out of the way, with a clear view down to the harbour
   const m = mid(), sees = (p) => { const tgt = m.clone().setY(45), eye = p.clone().setY(1.7), L = eye.distanceTo(tgt); for (let d = 8; d < L; d += 4) { const q = eye.clone().lerp(tgt, d / L); for (const b of W.buildings) if (b.alive && !b.pole && q.y < b.h && Math.abs(q.x - b.x) < b.w / 2 && Math.abs(q.z - b.z) < b.d / 2) return false; } return true; };
   let found = null;
-  for (let i = 0; i < 800 && !found; i++) { const p = V(rnd(-160, 160), 0, rnd(210, 330)); if (!inBuilding(p, 3) && (i > 600 || sees(p))) found = p; }
+  for (let i = 0; i < 800 && !found; i++) {
+    const a = rnd(0, Math.PI * 2), p = m.clone().add(V(Math.sin(a), 0, Math.cos(a)).multiplyScalar(rnd(150, 260))).setY(0);
+    if (Math.abs(p.x) > 410 || p.z < SHORE + 8 || p.z > 510 || inBuilding(p, 3) || p.distanceTo(robot.pos) < 90 || p.distanceTo(kaiju.pos) < 100) continue;
+    if (i > 600 || sees(p)) found = p;
+  }
   human.pos.copy(found || V(0, 0, 240));
   human.yaw = Math.atan2(m.x - human.pos.x, m.z - human.pos.z); human.pitch = 0.22;
   Object.assign(human, { alive: true, t: 0, deadT: 0, cause: '', bob: 0, moving: 0 });
@@ -339,8 +374,8 @@ addEventListener('pointermove', (e) => {
 const keys = new Set(); let gp = null;
 addEventListener('keydown', (e) => { if (e.repeat) return; keys.add(e.code); if (mode === 'pilot') pressed(e.code); if (e.code === 'Escape' && mode !== 'title') toTitle(); if (e.code === 'KeyM') toggleMute(); });
 addEventListener('keyup', (e) => keys.delete(e.code));
-const ROBOT_KEYS = { KeyJ: 'jab', KeyK: 'cross', KeyL: 'upper', KeyI: 'kick', KeyQ: 'plasma', KeyE: 'missiles', KeyF: 'blade', KeyC: 'backstep' };
-const KAIJU_KEYS = { KeyJ: 'swipe', KeyK: 'bite', KeyL: 'tail', KeyI: 'charge', KeyQ: 'acid', KeyR: 'roar', KeyE: 'beam', KeyF: 'quake', KeyC: 'hop' };
+const ROBOT_KEYS = { KeyJ: 'jab', KeyK: 'cross', KeyL: 'upper', KeyI: 'kick', KeyU: 'elbow', KeyO: 'hammer', KeyH: 'combo', KeyG: 'rocket', KeyQ: 'plasma', KeyE: 'missiles', KeyF: 'blade', KeyC: 'backstep' };
+const KAIJU_KEYS = { KeyJ: 'swipe', KeyK: 'bite', KeyL: 'tail', KeyI: 'charge', KeyU: 'rake', KeyO: 'headbutt', KeyH: 'stomp', KeyG: 'spines', KeyQ: 'acid', KeyR: 'roar', KeyE: 'beam', KeyF: 'quake', KeyC: 'hop' };
 function pressed(code) {
   const map = pilot === robot ? ROBOT_KEYS : KAIJU_KEYS;
   if (map[code]) pilot.start(map[code]);
@@ -361,8 +396,8 @@ function pilotInput() {
     if (b[5] && !prev[5]) pilot.start(pilot === robot ? 'plasma' : 'acid');
     if (b[7] && !prev[7]) pressed('ShiftLeft');
     if (b[6] && !prev[6] && pilot === kaiju) pilot.start('roar');
-    // d-pad: up and down for the two special moves, left to back off
-    [[12, 'KeyE'], [13, 'KeyF'], [14, 'KeyC']].forEach(([k, c]) => { if (b[k] && !prev[k]) pressed(c); });
+    // d-pad: up and down for the two special moves, left to back off, right for the rocket punch / spine volley; stick clicks for the combo and the hammer / stomp
+    [[12, 'KeyE'], [13, 'KeyF'], [14, 'KeyC'], [15, 'KeyG'], [10, 'KeyH'], [11, 'KeyO']].forEach(([k, c]) => { if (b[k] && !prev[k]) pressed(c); });
     block = block || b[4]; gp = b;
   }
   if (pilot === robot) pilot.block = block && pilot.can(); return i;
@@ -392,7 +427,7 @@ function begin(m) {
   $('#pads').hidden = !((pilot || onFoot) && (matchMedia('(pointer: coarse)').matches || mobile));
   $('#feed').hidden = !!pilot;
   if (onFoot) placeHuman();
-  director.cut(pilot ? 'wide' : 'waterline', 6);
+  director.cut(pilot || kaiju.pos.z > SHORE ? 'wide' : 'waterline', 6);
   labelHud();
 }
 // the texts that depend on the mode and the language
@@ -420,7 +455,7 @@ function hud() {
   $('#hpRt').textContent = Math.ceil(robot.hp); $('#hpKt').textContent = Math.ceil(kaiju.hp);
   for (const [f, id] of [[robot, '#mtR'], [kaiju, '#mtK']]) { const el = $(id); el.style.width = f.meter + '%'; el.parentNode.classList.toggle('full', f.meter >= 100); }
   if (pilot) {
-    const list = pilot === robot ? [['plasma', 'cdPlasma', 7], ['dash', 'cdDash', 2.5], ['missiles', 'cdMissiles', 6, 1], ['blade', 'cdBlade', 6, 1]] : [['acid', 'cdAcid', 6], ['charge', 'cdCharge', 4.5], ['roar', 'cdRoar', 9], ['beam', 'cdBeam', 6, 1], ['quake', 'cdQuake', 6, 1]];
+    const list = pilot === robot ? [['plasma', 'cdPlasma', 7], ['rocket', 'cdRocket', 5], ['dash', 'cdDash', 2.5], ['missiles', 'cdMissiles', 6, 1], ['blade', 'cdBlade', 6, 1]] : [['acid', 'cdAcid', 6], ['spines', 'cdSpines', 7], ['charge', 'cdCharge', 4.5], ['roar', 'cdRoar', 9], ['beam', 'cdBeam', 6, 1], ['quake', 'cdQuake', 6, 1]];
     $('#cds').innerHTML = list.map(([k, key, max, sup]) => { const n = T(key); const c = pilot.cd[k] || 0, fr = sup ? Math.min(pilot.meter / 100, 1 - c / max) : 1 - c / max; return `<span class="cd${fr >= 1 ? ' ready' : ''}${sup ? ' sup' : ''}"><i style="width:${fr * 100}%"></i>${n}</span>`; }).join('');
   } else $('#cds').innerHTML = '';
   const t = Math.floor(fightT); $('#clock').textContent = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;

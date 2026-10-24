@@ -23,6 +23,15 @@ const ROBOT_MOVES = {
   upper: { dur: 1.0, hit: [0.42, 0.58], at: 'fistR', dmg: 95, knock: 26, lift: true, keys: [[0, {}], [0.3, { shR: [0.5, 0, 0.3], elR: [-2.2, 0, 0], dip: 7, twist: 0.4, lean: 0.2 }], [0.5, { shR: [-2.6, 0, -0.2], elR: [-0.6, 0, 0], dip: -2, twist: -0.5, lean: -0.25, fwd: 22 }], [0.75, { shR: [-2.3, 0, 0], elR: [-0.6, 0, 0] }], [1, {}]] },
   kick: { dur: 0.95, hit: [0.4, 0.58], at: 'ankleR', dmg: 65, knock: 18, keys: [[0, {}], [0.3, { hipR: [-1.0, 0, 0], kneeR: [1.6, 0, 0], lean: -0.15 }], [0.48, { hipR: [-1.5, 0, 0], kneeR: [0.1, 0, 0], lean: -0.3, fwd: 18 }], [0.7, { hipR: [-0.8, 0, 0], kneeR: [1.0, 0, 0] }], [1, {}]] },
   plasma: { dur: 1.6, at: 'fistR', shot: 0.62, dmg: 125, keys: [[0, {}], [0.4, { shR: [-1.55, 0, 0], elR: [0, 0, 0], fingR: [0.1, 0, 0], thumbR: [0, 0, 0.3], twist: -0.2, lean: -0.05 }], [0.7, { shR: [-1.5, 0, 0], elR: [0, 0, 0], fingR: [0.1, 0, 0], thumbR: [0, 0, 0.3], twist: -0.2, lean: -0.2 }], [1, {}]] },
+  // a short elbow smash, a two-fisted hammer blow, a jab-cross-uppercut chain, and a rocket punch (forearm jets, a lunge from range)
+  elbow: { dur: 0.6, hit: [0.34, 0.5], at: 'elR', hitR: 10, dmg: 38, knock: 9, keys: [[0, {}], [0.25, { shR: [-0.4, 0, 0.9], elR: [-2.4, 0, 0], twist: 0.5 }], [0.42, { shR: [-1.1, -0.6, 0.4], elR: [-2.5, 0, 0], twist: -0.6, fwd: 22 }], [0.7, { shR: [-1.0, 0, 0.3], elR: [-2.2, 0, 0], twist: -0.3 }], [1, {}]] },
+  hammer: { dur: 1.2, hit: [0.5, 0.64], at: 'fistL', hitR: 10, dmg: 85, knock: 22, keys: [[0, {}], [0.38, { shL: [-3.0, 0, 0.4], shR: [-3.0, 0, -0.4], elL: [-0.9, 0, 0], elR: [-0.9, 0, 0], lean: -0.25 }], [0.56, { shL: [-1.1, 0, 0.25], shR: [-1.1, 0, -0.25], elL: [-0.2, 0, 0], elR: [-0.2, 0, 0], lean: 0.45, dip: 6, fwd: 18 }], [0.8, { shL: [-0.9, 0, 0.2], shR: [-0.9, 0, -0.2], lean: 0.3, dip: 4 }], [1, {}]] },
+  combo: { dur: 1.7, hits: [{ t: [0.14, 0.26], at: 'fistL', dmg: 20, knock: 4 }, { t: [0.36, 0.48], at: 'fistR', dmg: 26, knock: 6 }, { t: [0.66, 0.8], at: 'fistL', dmg: 48, knock: 20 }],
+    keys: [[0, {}], [0.18, { shL: [-1.55, 0, 0.1], elL: [-0.1, 0, 0], twist: 0.35, fwd: 28 }], [0.28, { shL: [-0.8, 0, -0.1], elL: [-1.8, 0, 0], twist: 0.1 }], [0.42, { shR: [-1.6, 0, -0.1], elR: [-0.05, 0, 0], twist: -0.55, lean: 0.2, fwd: 30 }],
+      [0.55, { shR: [-0.8, 0, 0.1], elR: [-1.8, 0, 0], shL: [0.4, 0, -0.3], elL: [-2.2, 0, 0], dip: 6, twist: 0.3 }], [0.74, { shL: [-2.6, 0, 0.2], elL: [-0.6, 0, 0], dip: -2, twist: 0.5, lean: -0.25, fwd: 20 }], [0.88, { shL: [-2.2, 0, 0], elL: [-0.6, 0, 0] }], [1, {}]] },
+  rocket: { dur: 1.5, hit: [0.42, 0.64], at: 'fistR', hitR: 11, dmg: 80, knock: 26, jet: 'elR',
+    keys: [[0, {}], [0.3, { shR: [0.6, 0, 0.3], elR: [-2.0, 0, 0], dip: 5, twist: 0.6, lean: 0.1, thrust: 0.6 }], [0.45, { shR: [-1.6, 0, -0.05], elR: [0, 0, 0], twist: -0.6, lean: 0.35, fwd: 120, thrust: 1, rise: 3 }],
+      [0.62, { shR: [-1.55, 0, 0], elR: [0, 0, 0], twist: -0.5, lean: 0.3, fwd: 60, thrust: 0.8 }], [0.85, { shR: [-1.2, 0, 0], elR: [-0.4, 0, 0], lean: 0.15 }], [1, {}]] },
   // thrusters fire and it skids back out of reach
   backstep: { dur: 0.9, keys: [[0, {}], [0.15, { dip: 4, lean: 0.12, thrust: 1 }], [0.32, { fwd: -115, rise: 4, lean: -0.15, thrust: 1, shL: [-1.1, 0, -0.35], shR: [-1.1, 0, 0.35], elL: [-1.2, 0, 0], elR: [-1.2, 0, 0] }], [0.7, { fwd: -55, rise: 3, thrust: 0.6, lean: -0.08 }], [0.88, { dip: 4 }], [1, {}]] },
   // special: the hull pods open and sixteen missiles arc into the target
@@ -40,6 +49,13 @@ const KAIJU_MOVES = {
   charge: { dur: 1.7, hit: [0.45, 0.8], at: 'head', dmg: 90, knock: 34, keys: [[0, {}], [0.3, { lean: 0.35, neck: [0.4, 0, 0], head: [0.3, 0, 0], dip: 4 }], [0.45, { lean: 0.45, neck: [0.5, 0, 0], head: [0.4, 0, 0], fwd: 75 }], [0.8, { lean: 0.4, fwd: 60 }], [1, {}]] },
   acid: { dur: 2.4, breath: [0.3, 0.85], dps: 55, keys: [[0, {}], [0.2, { neck: [-0.4, 0, 0], head: [-0.3, 0, 0], jaw: [0.5, 0, 0], lean: -0.15 }], [0.3, { neck: [0.25, 0, 0], head: [0.1, 0, 0], jaw: [1.0, 0, 0], lean: 0.1 }], [0.85, { neck: [0.25, 0, 0], head: [0.1, 0, 0], jaw: [1.0, 0, 0], lean: 0.1 }], [1, {}]] },
   roar: { dur: 2.2, roar: 0.25, keys: [[0, {}], [0.2, { neck: [-0.7, 0, 0], head: [-0.5, 0, 0], jaw: [1.1, 0, 0], lean: -0.35, shL: [-1, 0, -0.8], shR: [-1, 0, 0.8], fingL: [-0.7, 0, 0], fingR: [-0.7, 0, 0] }], [0.85, { neck: [-0.7, 0.1, 0], head: [-0.6, 0, 0], jaw: [1.15, 0, 0], lean: -0.35, shL: [-1.1, 0, -0.9], shR: [-1.1, 0, 0.9], fingL: [-0.7, 0, 0], fingR: [-0.7, 0, 0] }], [1, {}]] },
+  // a stomp that cracks the street, a two-handed claw rake, a skull-first headbutt, and a volley of glowing spines shot off its back
+  stomp: { dur: 1.3, quake: 0.5, qr: 44, dmg: 45, knock: 14, keys: [[0, {}], [0.3, { hipR: [-1.1, 0, 0.1], kneeR: [1.3, 0, 0], ankleR: [-0.2, 0, 0], lean: -0.15, shL: [-0.6, 0, -0.5], shR: [-0.6, 0, 0.5] }], [0.5, { hipR: [-0.05, 0, 0], kneeR: [0.1, 0, 0], lean: 0.2, dip: 4 }], [0.75, { dip: 3 }], [1, {}]] },
+  rake: { dur: 1.3, hits: [{ t: [0.25, 0.4], at: 'handR', dmg: 34, knock: 6 }, { t: [0.55, 0.72], at: 'handL', dmg: 44, knock: 14 }],
+    keys: [[0, {}], [0.18, { shR: [-1.7, 0.6, 1.0], elR: [-0.6, 0, 0], fingR: [-0.7, 0, 0], twist: 0.5 }], [0.34, { shR: [-0.9, -0.8, -0.5], elR: [-0.2, 0, 0], fingR: [0.7, 0, 0], twist: -0.4, fwd: 18, shL: [-1.7, -0.6, -1.0], elL: [-0.6, 0, 0], fingL: [-0.7, 0, 0] }],
+      [0.62, { shL: [-0.9, 0.8, 0.5], elL: [-0.2, 0, 0], fingL: [0.7, 0, 0], twist: 0.55, fwd: 18, shR: [-0.5, 0, 0.3] }], [1, {}]] },
+  headbutt: { dur: 1.1, hit: [0.45, 0.62], at: 'head', dmg: 62, knock: 20, keys: [[0, {}], [0.35, { neck: [-0.6, 0, 0], head: [-0.4, 0, 0], lean: -0.3, dip: 3 }], [0.52, { neck: [0.6, 0, 0], head: [0.5, 0, 0], lean: 0.5, fwd: 40, dip: 5 }], [0.75, { neck: [0.3, 0, 0], lean: 0.3 }], [1, {}]] },
+  spines: { dur: 2.4, volley: [0.35, 0.75, 10], keys: [[0, {}], [0.25, { lean: 0.35, neck: [0.3, 0, 0], dip: 4, shL: [-0.3, 0, -0.5], shR: [-0.3, 0, 0.5], jaw: [0.5, 0, 0] }], [0.8, { lean: 0.4, neck: [0.35, 0, 0], dip: 5, jaw: [0.6, 0, 0] }], [1, {}]] },
   // a heavy hop backwards out of the clinch
   hop: { dur: 1.15, land: 0.68, keys: [[0, {}], [0.22, { dip: 6, lean: 0.15 }], [0.45, { rise: 9, fwd: -95, lean: -0.2, shL: [-0.8, 0, -0.5], shR: [-0.8, 0, 0.5] }], [0.68, { fwd: -40, dip: 7, lean: 0.12 }], [1, {}]] },
   // special: a light climbs the dorsal plates twice, then a beam of blue fire that sweeps after its target, cutting through buildings
@@ -99,7 +115,7 @@ export class Fighter {
     if (!m || !this.can() || (this.cd[name] || 0) > 0) return false;
     if (m.super) { if (this.meter < 100) return false; this.meter = 0; }
     this.act = { name, m, t: 0, hitDone: false, shotDone: false, fired: 0 };
-    this.cd[name] = { plasma: 7, acid: 6, roar: 9, charge: 4.5, tail: 3, backstep: 2.2, hop: 3, missiles: 6, blade: 6, beam: 6, quake: 6 }[name] || 0;
+    this.cd[name] = { plasma: 7, acid: 6, roar: 9, charge: 4.5, tail: 3, backstep: 2.2, hop: 3, missiles: 6, blade: 6, beam: 6, quake: 6, hammer: 2, combo: 2.5, rocket: 5, stomp: 3, rake: 1.5, headbutt: 1.5, spines: 7 }[name] || 0;
     this.emit('attack', { name, super: !!m.super }); return true;
   }
   // the opponent's body, as a vertical capsule
@@ -156,10 +172,22 @@ export class Fighter {
         mv.addScaledVector(toOpp.clone().normalize(), a.leapV * dt);
       }
       if (m.spin) { const s = p < 0.3 ? 0 : p > 0.75 ? 1 : ease((p - 0.3) / 0.45); this.spinYaw = s * TAU; }
-      if (m.hit && !a.hitDone && p >= m.hit[0] && p <= m.hit[1]) {
-        let hp = m.at === 'head' ? this.wp('head', [0, -2, 12]) : this.wp(m.at, [0, -3, 0]);
+      // blows: one hit window, or several for a combo, each landing at most once
+      const hits = m.hits || (m.hit ? [{ t: m.hit, at: m.at, dmg: m.dmg, knock: m.knock, r: m.hitR }] : []);
+      a.done = a.done || [];
+      hits.forEach((h, hi) => {
+        if (a.done[hi] || p < h.t[0] || p > h.t[1] || !this.act) return;
+        let hp = h.at === 'head' ? this.wp('head', [0, -2, 12]) : this.wp(h.at, [0, -3, 0]);
         if (m.spin) { this.root.updateMatrixWorld(true); for (const seg of this.j.tail) { const q = seg.localToWorld(new THREE.Vector3(0, 0, -3)); if (this.hitTest(opp, q, 9)) { hp = q; break; } } }
-        if (this.hitTest(opp, hp, m.hitR || (m.spin ? 9 : 8))) { a.hitDone = true; const dealt = opp.takeHit(m.dmg * (this.rage ? 1.15 : 1), this, m.knock, { down: m.down, unblockable: m.unblock }); this.emit('hit', { point: hp, dmg: dealt, move: a.name, heavy: m.knock >= 20 }); }
+        if (this.hitTest(opp, hp, h.r || (m.spin ? 9 : 8))) { a.done[hi] = true; const dealt = opp.takeHit(h.dmg * (this.rage ? 1.15 : 1), this, h.knock, { down: m.down, unblockable: m.unblock }); this.emit('hit', { point: hp, dmg: dealt, move: a.name, heavy: h.knock >= 20 }); }
+      });
+      // jets on a limb (the rocket punch)
+      if (m.jet && (pose.thrust || 0) > 0.3) this.emit('thrust', { ps: [this.wp(m.jet, [0, 1, -3])], dir: this.face().negate(), k: pose.thrust });
+      // a volley of spines torn off the dorsal plates
+      if (m.volley) {
+        const [s0, s1, n] = m.volley, want = p < s0 ? 0 : Math.min(n, Math.floor((p - s0) / (s1 - s0) * n) + 1);
+        if (a.fired < want) this.root.updateMatrixWorld(true);
+        while (a.fired < want) { a.fired++; const pl = this.plates[Math.floor(Math.random() * this.plates.length)]; this.emit('spine', { from: pl.localToWorld(new THREE.Vector3(0, 0.9, 0)), target: opp }); }
       }
       if (m.shot && !a.shotDone && p >= m.shot) { a.shotDone = true; this.emit('shoot', { from: this.wp('fistR', [0, -6, 0]), dir: opp.pos.clone().setY(40).sub(this.wp('fistR')).normalize(), dmg: m.dmg }); }
       if (m.breath && p >= m.breath[0] && p <= m.breath[1]) {
@@ -199,7 +227,7 @@ export class Fighter {
       // a landing shockwave: knocks the opponent flat if it is a stomp, and brings down the buildings around
       if (m.quake !== undefined && !a.quaked && p >= m.quake) {
         a.quaked = true; const c = this.pos.clone().setY(0);
-        this.emit('quake', { p: c, r: m.qr, big: !m.at });
+        this.emit('quake', { p: c, r: m.qr, big: !m.at && m.qr > 50 });
         if (!m.at && m.dmg) {
           const dd = Math.max(0, Math.hypot(opp.pos.x - c.x, opp.pos.z - c.z) - opp.R);
           if (dd < m.qr && opp.air < 8) { const dealt = opp.takeHit(m.dmg * (1 - 0.5 * dd / m.qr), this, m.knock, { down: dd < m.qr * 0.4, unblockable: m.unblock }); this.emit('hit', { point: opp.pos.clone().setY(20), dmg: dealt, move: a.name, heavy: true }); }
@@ -382,7 +410,7 @@ export class Fighter {
       // acid and beam: before the breath a pulse of light climbs from the tail to the head (twice for the beam), then the whole back blazes
       const ch = a && (a.name === 'acid' || beam) ? { p: Math.min(1, a.t / a.m.dur), w: beam ? a.m.windup : 0.3, e: beam ? a.m.beam[1] : 0.85 } : null;
       this.bands.forEach((m, i) => {
-        let tgt = this.alive ? 0.9 + (1 - hpK) * 1.2 + roar * 3 : 0.05;
+        let tgt = this.alive ? 0.9 + (1 - hpK) * 1.2 + roar * 3 + (a && a.name === 'spines' ? 4 + Math.sin(now * 25 + i) : 0) : 0.05;
         if (ch) { const w = ch.p / ch.w, wv = beam ? (w * 2) % 1 : w; tgt = ch.p < ch.w ? 1.3 + 7 * Math.max(0, 1 - Math.abs(wv * 1.25 - i / 7) * 4) + w * 1.5 : ch.p < ch.e ? (beam ? 10 : 6) + Math.sin(now * 30 + i) * 0.8 : 2; }
         m.emissiveIntensity += (tgt - m.emissiveIntensity) * Math.min(1, dt * 14);
       });
@@ -431,7 +459,8 @@ export function think(me, opp, dt) {
   switch (A.state) {
     case 'approach':
       inp.move = 1; inp.strafe = A.circle * 0.25;
-      if (robot) { if (d > 70 && Math.random() < dt * 0.22) me.start('plasma'); if (d > 90 && Math.random() < dt * 0.4) me.dash = 0.5; }
+      if (robot) { if (d > 70 && Math.random() < dt * 0.22) me.start('plasma'); if (d > 20 && d < 70 && Math.random() < dt * 0.4) me.start('rocket'); if (d > 90 && Math.random() < dt * 0.4) me.dash = 0.5; }
+      else if (d > 50 && Math.random() < dt * 0.15) me.start('spines');
       else if (d > 60 && Math.random() < dt * 0.35) me.start('charge');
       else if (d > 20 && d < 90 && Math.random() < dt * 0.2) me.start('acid');
       if (ready && A.st > 0.8) go('super');
@@ -439,8 +468,8 @@ export function think(me, opp, dt) {
       break;
     case 'close': {
       inp.move = d > 10 ? 0.6 : 0.1; inp.strafe = A.strafe * 0.4;
-      if (robot) { if (!me.block && Math.random() < dt * 2.4) me.start(pick(['jab', 'jab', 'cross', 'upper', 'kick', 'cross'])); }
-      else if (Math.random() < dt * (me.rage ? 3.2 : 2.4)) me.start(pick(['swipe', 'swipe', 'bite', 'tail', 'bite']));
+      if (robot) { if (!me.block && Math.random() < dt * 2.4) me.start(pick(['jab', 'jab', 'cross', 'upper', 'kick', 'cross', 'elbow', 'elbow', 'hammer', 'combo'])); }
+      else if (Math.random() < dt * (me.rage ? 3.2 : 2.4)) me.start(pick(['swipe', 'swipe', 'bite', 'tail', 'bite', 'rake', 'rake', 'headbutt', 'headbutt', 'stomp']));
       const hurt = robot && (me.stun > 0.5 || me.down > 0);   // the robot backs off when it is getting hurt; the kaiju just gets angrier
       if (opp.down > 0.5 || d > 45 || A.st > A.len || (ready && A.st > 1.2) || (hurt && Math.random() < dt * 0.7)) {
         const taunt = opp.down > 0.5 && !robot;
@@ -451,8 +480,8 @@ export function think(me, opp, dt) {
     case 'apart':
       if (A.retreat && me.start(A.retreat)) A.retreat = null; else if (A.st > 1) A.retreat = null;
       inp.move = d < A.range - 12 ? -0.85 : d > A.range + 25 ? 0.6 : 0; inp.strafe = A.circle * 0.85;
-      if (robot) { if (d > 40 && Math.random() < dt * 0.15) me.start('plasma'); }
-      else { if (A.taunt && me.start('roar')) A.taunt = false; if (Math.random() < dt * 0.06) me.start('roar'); if (d < 100 && Math.random() < dt * 0.2) me.start('acid'); if (d > 30 && d < 110 && Math.random() < dt * 0.1 && me.start('charge')) go('approach'); }
+      if (robot) { if (d > 40 && Math.random() < dt * 0.15) me.start('plasma'); if (d > 20 && d < 75 && Math.random() < dt * 0.12) me.start('rocket'); }
+      else { if (A.taunt && me.start('roar')) A.taunt = false; if (Math.random() < dt * 0.06) me.start('roar'); if (d < 100 && Math.random() < dt * 0.2) me.start('acid'); if (d > 40 && Math.random() < dt * 0.15) me.start('spines'); if (d > 30 && d < 110 && Math.random() < dt * 0.1 && me.start('charge')) go('approach'); }
       if (A.st > A.len) go(ready ? 'super' : 'approach');
       break;
     case 'super': {
