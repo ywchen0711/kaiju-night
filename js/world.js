@@ -35,9 +35,10 @@ function facade(seed, glass) {
 function asphalt() {
   const N = 512;
   const col = canvas(N, N, (g) => { g.fillStyle = '#1b1c1f'; g.fillRect(0, 0, N, N); for (let i = 0; i < 6000; i++) { const v = 20 + Math.random() * 25; g.fillStyle = `rgb(${v},${v},${v + 2})`; g.fillRect(Math.random() * N, Math.random() * N, 2, 2); } for (let i = 0; i < 30; i++) { g.strokeStyle = 'rgba(0,0,0,.5)'; g.lineWidth = 1 + Math.random() * 2; g.beginPath(); let x = Math.random() * N, y = Math.random() * N; g.moveTo(x, y); for (let k = 0; k < 6; k++) { x += rnd(-30, 30); y += rnd(-30, 30); g.lineTo(x, y); } g.stroke(); } });
-  const rough = canvas(N, N, (g) => { g.fillStyle = '#c8c8c8'; g.fillRect(0, 0, N, N); for (let i = 0; i < 26; i++) { const x = Math.random() * N, y = Math.random() * N, r = rnd(20, 70), grd = g.createRadialGradient(x, y, 0, x, y, r); grd.addColorStop(0, '#101010'); grd.addColorStop(0.7, '#202020'); grd.addColorStop(1, 'rgba(200,200,200,0)'); g.fillStyle = grd; g.beginPath(); g.ellipse(x, y, r, r * rnd(0.4, 1), Math.random() * 3, 0, Math.PI * 2); g.fill(); } });
+  // puddles: clusters of overlapping soft blobs, tiled sparsely so they don't repeat as a pattern
+  const rough = canvas(N, N, (g) => { g.fillStyle = '#b4b4b4'; g.fillRect(0, 0, N, N); for (let i = 0; i < 9; i++) { const cx = Math.random() * N, cy = Math.random() * N, R = rnd(30, 80); for (let k = 0; k < 7; k++) { const x = cx + rnd(-R, R), y = cy + rnd(-R, R) * 0.6, r = rnd(R * 0.3, R * 0.7), grd = g.createRadialGradient(x, y, 0, x, y, r); grd.addColorStop(0, 'rgba(14,14,14,.9)'); grd.addColorStop(0.6, 'rgba(30,30,30,.6)'); grd.addColorStop(1, 'rgba(30,30,30,0)'); g.fillStyle = grd; g.fillRect(x - r, y - r, r * 2, r * 2); } } });
   const T = (c, srgb) => { const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(60, 60); t.anisotropy = 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; };
-  return { map: T(col, true), roughnessMap: T(rough) };
+  const rt = T(rough); rt.repeat.set(9, 9); return { map: T(col, true), roughnessMap: rt };
 }
 // a soft glow sprite texture
 export const glowTex = (() => { let t = null; return () => t || (t = new THREE.CanvasTexture(canvas(64, 64, (g) => { const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32); grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(0.3, 'rgba(255,255,255,.5)'); grd.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = grd; g.fillRect(0, 0, 64, 64); }))); })();
@@ -120,7 +121,7 @@ export function buildWorld(scene, renderer, q) {
       const w = lots === 1 ? rnd(36, 56) : rnd(20, 30), d = lots === 1 ? rnd(36, 56) : rnd(22, 52);
       const x = cx + (lots === 1 ? 0 : (i - (lots - 1) / 2) * (BLOCK / lots)), z = cz + rnd(-4, 4);
       let h = near ? rnd(18, 55) : rnd(30, 70) + bz * rnd(6, 16) + (Math.abs(bx) < 4 && bz > 5 ? rnd(40, 160) : 0);
-      if (Math.abs(x) < 70 && z < 140 && z > SHORE + 40) continue;   // the plaza where the fight starts
+      if (Math.abs(x) < 46 && z < 100 && z > SHORE + 40) continue;   // the plaza where the fight starts
       addBuilding(x, z, w, d, h, mats[Math.floor(Math.random() * mats.length)]);
     }
   }
@@ -150,13 +151,14 @@ export function buildWorld(scene, renderer, q) {
   // rain: streaks that fall around the camera, slanted by the wind
   const N = q.rain, pos = new Float32Array(N * 6), seeds = new Float32Array(N * 2);
   for (let i = 0; i < N; i++) { const x = rnd(-120, 120), y = rnd(0, 140), z = rnd(-120, 120), len = rnd(1.4, 2.6); pos.set([x, y, z, x - 0.25, y + len, z - 0.1], i * 6); seeds[i * 2] = seeds[i * 2 + 1] = Math.random(); }
-  const rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); rg.setAttribute('seed', new THREE.BufferAttribute(seeds, 1));
+  const rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); rg.setAttribute('seed', new THREE.BufferAttribute(seeds, 1)); const bases = new Float32Array(N * 6); for (let i = 0; i < N; i++) { bases.set([pos[i*6], pos[i*6+1], pos[i*6+2], pos[i*6], pos[i*6+1], pos[i*6+2]], i * 6); } rg.setAttribute('base', new THREE.BufferAttribute(bases, 3));
   const rainU = { uTime: { value: 0 }, uCam: { value: new THREE.Vector3() }, uFlash: { value: 0 } };
   const rain = new THREE.LineSegments(rg, new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: rainU,
-    vertexShader: `attribute float seed; uniform float uTime; uniform vec3 uCam; varying float vA;
-      void main(){ vec3 p = position; float fall = uTime * (55. + seed * 25.);
-        p.y = mod(p.y - fall, 140.) - 30.; p.x = mod(p.x - uCam.x + fall*0.12 + 120., 240.) - 120.; p.z = mod(p.z - uCam.z + 120., 240.) - 120.;
-        vec4 w = vec4(p + vec3(uCam.x, 0., uCam.z), 1.); vA = .18 + seed * .2; gl_Position = projectionMatrix * modelViewMatrix * w; }`,
+    vertexShader: `attribute float seed; attribute vec3 base; uniform float uTime; uniform vec3 uCam; varying float vA;
+      void main(){ float fall = uTime * (55. + seed * 25.);
+        vec3 b = base; b.y = mod(base.y - fall - uCam.y + 70., 140.) - 70. + uCam.y; b.x = mod(base.x - uCam.x + fall*0.12 + 120., 240.) - 120. + uCam.x; b.z = mod(base.z - uCam.z + 120., 240.) - 120. + uCam.z;
+        vec3 p = b + (position - base); float d = distance(b, uCam);
+        vA = (.1 + seed * .14) * smoothstep(3., 14., d) * (1. - smoothstep(80., 120., d)); gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.); }`,
     fragmentShader: 'varying float vA; uniform float uFlash; void main(){ gl_FragColor = vec4(vec3(.62,.7,.85) * (1. + uFlash*2.), vA); }' }));
   rain.frustumCulled = false; scene.add(rain); W.rainU = rainU;
 
@@ -170,8 +172,8 @@ export function buildWorld(scene, renderer, q) {
     const spot = new THREE.SpotLight(0xdfe8ff, 60000, 400, 0.13, 0.5, 2); spot.position.set(1.5, -1, 0); g.add(spot); scene.add(spot.target);
     // the beam itself: a cone of light through the rain
     const beam = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 24, 1, true), new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, uniforms: { uO: { value: 0.16 } },
-      vertexShader: 'varying float vY; void main(){ vY = position.y + .5; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }',
-      fragmentShader: 'varying float vY; uniform float uO; void main(){ gl_FragColor = vec4(vec3(.8,.85,1.), uO * pow(vY, 2.2)); }' }));
+      vertexShader: 'varying float vY; varying vec3 vN, vV; void main(){ vY = position.y + .5; vec4 mv = modelViewMatrix * vec4(position,1.); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
+      fragmentShader: 'varying float vY; varying vec3 vN, vV; uniform float uO; void main(){ float f = pow(abs(dot(normalize(vN), normalize(vV))), 2.5); gl_FragColor = vec4(vec3(.8,.85,1.), uO * .8 * f * pow(vY, 1.6) * smoothstep(0., .25, vY)); }' }));
     scene.add(g, beam);
     W.helis.push({ g, rotor, blink, spot, beam, a: (i / q.helis) * Math.PI * 2, r: rnd(140, 200), y: rnd(90, 130), sp: rnd(0.06, 0.1) * (i % 2 ? 1 : -1), aim: new THREE.Vector3() });
   }

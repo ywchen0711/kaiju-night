@@ -69,6 +69,24 @@ bloom.enabled = q.bloom;
 
 // a light that flashes where a blow lands
 const hitLight = new THREE.PointLight(0xffc080, 0, 140, 2); scene.add(hitLight);
+const rim = new THREE.DirectionalLight(0xa8bcff, 2.4); scene.add(rim, rim.target);
+const bounce = new THREE.DirectionalLight(0xff8a44, 0.7); scene.add(bounce, bounce.target);
+function placeLights() {
+  const m = mid(), away = m.clone().sub(camera.position).setY(0).normalize();
+  rim.target.position.copy(m).setY(40); rim.position.copy(m).addScaledVector(away, 300).setY(220); rim.intensity = 2.4 + W.flash * 4;
+  bounce.target.position.copy(m).setY(50); bounce.position.copy(m).add(V(-80, -30, 200));
+}
+// keep the camera out of buildings: march from the subject toward the camera and stop in front of the first wall
+function clampCam(pos, look) {
+  const dir = pos.clone().sub(look), len = dir.length(); dir.divideScalar(len || 1);
+  const p = V(); let last = look.clone();
+  for (let d = 6; d <= len; d += 3) {
+    p.copy(look).addScaledVector(dir, d);
+    for (const b of W.buildings) if (b.alive && !b.pole && p.y < b.h + 3 && Math.abs(p.x - b.x) < b.w / 2 + 3 && Math.abs(p.z - b.z) < b.d / 2 + 3) return last;
+    last = p.clone();
+  }
+  return pos;
+}
 
 // ------------------------------------------------------------------ the fight
 let robot, kaiju, mode = 'title', pilot = null, endT = 0, slow = 1, slowT = 0, shake = 0, flash = 0, hurt = 0, fightT = 0;
@@ -76,14 +94,14 @@ const shots = [];   // plasma bolts in flight
 function newFight() {
   for (const f of [robot, kaiju]) if (f) scene.remove(f.root);
   robot = new Fighter('robot', scene); kaiju = new Fighter('kaiju', scene);
-  robot.pos.set(0, 0, 120); robot.yaw = Math.PI;
+  robot.pos.set(0, 0, 90); robot.yaw = Math.PI;
   kaiju.pos.set(rnd(-30, 30), 0, -150); kaiju.yaw = 0;
   shots.length = 0; endT = 0; fightT = 0; slow = 1; director.cut('wide');
 }
 const fighters = () => [robot, kaiju];
 const mid = () => robot.pos.clone().add(kaiju.pos).multiplyScalar(0.5);
 
-function bigHit(p, power) { hitLight.position.copy(p); hitLight.intensity = 60000 * power; shake = Math.max(shake, 1.2 * power); flash = Math.max(flash, 0.12 * power); }
+function bigHit(p, power) { hitLight.position.copy(p); hitLight.intensity = 22000 * power; shake = Math.max(shake, 1.2 * power); flash = Math.max(flash, 0.12 * power); }
 function slowmo(k, t) { slow = k; slowT = t; }
 const camDist = (p) => camera.position.distanceTo(p);
 
@@ -170,6 +188,7 @@ const director = {
       case 'close': { const w = this.who || kaiju; pos = this.focus.clone().addScaledVector(side, 60).add(V(0, 6, 0)).addScaledVector(a, -10); look = this.focus; fov = 30; break; }
       case 'face': { const w = this.who, hp = w.wp('head', [0, 0, 10]), f = w.face(); pos = hp.clone().addScaledVector(f, 55).addScaledVector(side, 20).add(V(0, -14, 0)); look = hp; fov = 34; break; }
       case 'ruin': pos = this.focus.clone().addScaledVector(side, 110).add(V(0, 8, 0)); look = this.focus.clone().setY(25); fov = 40; break;
+      case 'title': pos = V(52 - t * 0.6, 2.2, 160); look = V(-85, 48, 0); fov = 50; break;
       case 'death': { const w = this.who; pos = w.pos.clone().addScaledVector(side, 120 - t * 6).add(V(0, 20 + t * 4, 0)); look = w.pos.clone().setY(20); fov = 36; break; }
     }
     return { pos, look, fov };
@@ -180,7 +199,7 @@ const LABELS = { wide: '● LIVE · CH7 新聞', heli: '● LIVE · 新聞直升
 // pilot camera: behind your giant, framing the enemy
 function pilotFrame() {
   const me = pilot, foe = me === robot ? kaiju : robot, a = foe.pos.clone().sub(me.pos).setY(0).normalize(), side = V(a.z, 0, -a.x);
-  const pos = me.pos.clone().addScaledVector(a, -85).addScaledVector(side, 30).setY(me === robot ? 78 : 72);
+  const pos = me.pos.clone().addScaledVector(a, -80).addScaledVector(side, 62).setY(me === robot ? 66 : 62);
   const look = me.pos.clone().lerp(foe.pos, 0.6).setY(42);
   return { pos, look, fov: 46 };
 }
@@ -233,7 +252,7 @@ function setupTouch() {
 setupTouch();
 
 // ------------------------------------------------------------------ screens and HUD
-function toTitle() { mode = 'title'; pilot = null; $('#title').hidden = false; $('#hud').hidden = true; $('#end').hidden = true; $('#pads').hidden = true; $('#help').hidden = true; newFight(); director.cut('orbit', 999); }
+function toTitle() { mode = 'title'; pilot = null; $('#title').hidden = false; $('#hud').hidden = true; $('#end').hidden = true; $('#pads').hidden = true; $('#help').hidden = true; newFight(); robot.pos.set(0, 0, 62); robot.yaw = Math.PI; kaiju.pos.set(-20, 0, -110); director.cut('title', 999); }
 function begin(m) {
   Audio.start(); newFight(); mode = m === 'watch' ? 'watch' : 'pilot'; pilot = m === 'robot' ? robot : m === 'kaiju' ? kaiju : null;
   $('#title').hidden = true; $('#hud').hidden = false; $('#end').hidden = true;
@@ -292,7 +311,10 @@ function frame() {
   if ((!robot.alive || !kaiju.alive) && mode !== 'end' && mode !== 'title') { endT += rdt; if (endT > 5) showEnd(); }
   Audio.tension(robot.alive && kaiju.alive ? Math.min(1, 60 / Math.max(10, robot.pos.distanceTo(kaiju.pos))) : 0.2);
   // camera
-  const f = pilot && mode === 'pilot' ? pilotFrame() : director.frame(rdt);
+  let f = pilot && mode === 'pilot' ? pilotFrame() : director.frame(rdt); let cp = clampCam(f.pos, f.look);
+  // a wall forced the camera right up against the giants: right after a cut, try another shot instead
+  for (let tries = 0; tries < 4 && mode === 'watch' && director.t < 0.2 && !['close', 'face'].includes(director.shot) && cp.distanceTo(f.look) < f.pos.distanceTo(f.look) * 0.55; tries++) { director.pick(); f = director.frame(0); cp = clampCam(f.pos, f.look); }
+  f.pos = cp;
   const cut = director.t < rdt * 1.5 && !pilot;
   if (!camInit || cut) { camPos.copy(f.pos); camLook.copy(f.look); camInit = true; }
   else { const k = 1 - Math.exp(-rdt * (pilot ? 4 : 6)); camPos.lerp(f.pos, k); camLook.lerp(f.look, 1 - Math.exp(-rdt * 5)); }
@@ -305,9 +327,9 @@ function frame() {
   shake = Math.max(0, shake - rdt * 2.2); flash = Math.max(0, flash - rdt * 1.5); hurt = Math.max(0, hurt - rdt * 0.8);
   hitLight.intensity *= Math.exp(-rdt * 9);
   // the world
-  W.update(dt, camera, mid()); W.updateRuins(dt); fx.update(dt, t);
+  W.update(dt, camera, mid()); W.updateRuins(dt); placeLights(); fx.update(dt, t);
   grade.uniforms.uTime.value = t; grade.uniforms.uFlash.value = flash + W.flash * 0.05; grade.uniforms.uHurt.value = hurt;
-  grade.uniforms.uCA.value = 0.0012 + shake * 0.004;
+  grade.uniforms.uCA.value = 0.0006 + shake * 0.0012;
   const barsTarget = mode === 'watch' || mode === 'title' ? 0.06 : 0; grade.uniforms.uBars.value += (barsTarget - grade.uniforms.uBars.value) * Math.min(1, rdt * 3);
   if (mode !== 'title') hud();
   composer.render(rdt);
@@ -316,4 +338,13 @@ W.onThunder = () => { Audio.thunder(rnd(1, 2.5)); shake = Math.max(shake, 0.15);
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); grade.uniforms.uAspect.value = innerWidth / innerHeight; });
 toTitle();
 frame();
-window.KN = { get robot() { return robot; }, get kaiju() { return kaiju; }, get mode() { return mode; }, begin, director, W, fx, renderer, toTitle, setSlow: slowmo };
+// fast-forward an AI fight without drawing (for balance checks)
+function sim(seconds, dt = 1 / 30) {
+  newFight(); mode = 'watch'; let t2 = 0;
+  for (; t2 < seconds && robot.alive && kaiju.alive; t2 += dt) {
+    const a = think(robot, kaiju, dt), b = think(kaiju, robot, dt);
+    robot.update(dt, kaiju, a, W); kaiju.update(dt, robot, b, W); handleEvents(robot, kaiju); handleEvents(kaiju, robot); updateShots(dt); W.updateRuins(dt);
+  }
+  return { t: Math.round(t2), robot: Math.round(robot.hp), kaiju: Math.round(kaiju.hp), fallen: W.buildings.filter((b) => !b.alive && !b.pole).length };
+}
+window.KN = { sim, get robot() { return robot; }, get kaiju() { return kaiju; }, get mode() { return mode; }, begin, director, W, fx, renderer, toTitle, setSlow: slowmo };

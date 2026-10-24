@@ -61,7 +61,7 @@ export function makeFx(scene, q) {
   const F = {
     smoke, glow, sparks,
     // dust and smoke where something heavy lands
-    dust(x, z, power = 1, y = 1) { for (let i = 0; i < 10 * power; i++) { const a = Math.random() * 6.28, s = rnd(6, 18) * power; smoke.add({ x: x + Math.cos(a) * 3, y: y + rnd(0, 3), z: z + Math.sin(a) * 3, vx: Math.cos(a) * s, vy: rnd(1, 4), vz: Math.sin(a) * s, life: rnd(2.5, 5), size: rnd(8, 16) * power, grow: 2.2, color: [0.2, 0.19, 0.18], alpha: 0.55, drag: 1.2, fadeIn: 0.1, spin: rnd(-0.3, 0.3) }); } },
+    dust(x, z, power = 1, y = 1) { for (let i = 0; i < 10 * power; i++) { const a = Math.random() * 6.28, s = rnd(1, 16) * power, o = rnd(0, 8); smoke.add({ x: x + Math.cos(a) * o, y: y + rnd(0, 4), z: z + Math.sin(a) * o, vx: Math.cos(a) * s, vy: rnd(1, 6), vz: Math.sin(a) * s, life: rnd(2, 5), size: rnd(6, 16) * power, grow: 2.2, color: [0.11, 0.105, 0.1], alpha: rnd(0.3, 0.55), drag: 1.2, fadeIn: 0.1, spin: rnd(-0.3, 0.3) }); } },
     // metal on metal or claw on armour: sparks and a flash
     sparks(p, n = 40, color = [1, 0.75, 0.35]) {
       for (let i = 0; i < n; i++) { const v = new THREE.Vector3(rnd(-1, 1), rnd(-0.2, 1), rnd(-1, 1)).normalize().multiplyScalar(rnd(15, 55)); sparks.add({ x: p.x, y: p.y, z: p.z, vx: v.x, vy: v.y, vz: v.z, life: rnd(0.5, 1.3), size: rnd(0.6, 1.4), color, alpha: 1, grav: 30, drag: 0.6, floor: true }); }
