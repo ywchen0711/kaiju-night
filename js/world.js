@@ -58,7 +58,7 @@ export function buildWorld(scene, renderer, q) {
       float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
       float fbm(vec2 p){ float v=0., a=.5; for(int i=0;i<5;i++){ v+=a*n(p); p*=2.03; a*=.5; } return v; }
       void main(){
-        float y = vP.y; vec2 uv = vP.xz/(y+.35)*1.6 + vec2(uTime*.01, uTime*.004);
+        float y = vP.y; vec2 uv = vP.xz/max(y+.35,.08)*1.6 + vec2(uTime*.01, uTime*.004);
         float c = fbm(uv*1.4);
         vec3 col = mix(vec3(.012,.016,.024), vec3(.05,.055,.07), c);
         col += vec3(.22,.12,.06) * pow(1.-clamp(y,0.,1.), 6.) * (.6 + .4*c);   // the city's orange glow on the clouds
@@ -173,7 +173,7 @@ export function buildWorld(scene, renderer, q) {
     // the beam itself: a cone of light through the rain
     const beam = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 24, 1, true), new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, uniforms: { uO: { value: 0.16 } },
       vertexShader: 'varying float vY; varying vec3 vN, vV; void main(){ vY = position.y + .5; vec4 mv = modelViewMatrix * vec4(position,1.); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
-      fragmentShader: 'varying float vY; varying vec3 vN, vV; uniform float uO; void main(){ float f = pow(abs(dot(normalize(vN), normalize(vV))), 2.5); gl_FragColor = vec4(vec3(.8,.85,1.), uO * .8 * f * pow(vY, 1.6) * smoothstep(0., .25, vY)); }' }));
+      fragmentShader: 'varying float vY; varying vec3 vN, vV; uniform float uO; void main(){ float f = pow(abs(dot(normalize(vN), normalize(vV))), 2.5); gl_FragColor = vec4(vec3(.8,.85,1.), uO * .8 * f * pow(max(vY, 0.), 1.6) * smoothstep(0., .25, vY)); }' }));
     scene.add(g, beam);
     W.helis.push({ g, rotor, blink, spot, beam, a: (i / q.helis) * Math.PI * 2, r: rnd(140, 200), y: rnd(90, 130), sp: rnd(0.06, 0.1) * (i % 2 ? 1 : -1), aim: new THREE.Vector3() });
   }

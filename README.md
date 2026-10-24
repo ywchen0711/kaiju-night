@@ -16,9 +16,13 @@ A giant robot and a kaiju fight in a harbour city at night, in the rain: **https
   tail, thighs and forearms, horns, gill slits and old wounds that glow brighter as the kaiju gets hurt; antennas, hoses,
   vents and back thrusters on the jaeger.
 - **The fight**: punches, uppercut, kick, elbow, two-fisted hammer, a jab-cross-uppercut combo, a jet-assisted rocket
-  punch, block, dash and plasma cannon against claw, two-handed rake, bite, headbutt, stomp, tail sweep, charge, acid
-  breath, a volley of glowing spines torn off its back, and roar. Every fight starts from random positions. Buildings in the way collapse into dust and fire. The AI fights in phases (close in, trade blows,
+  punch, block, dash and plasma cannon against claw, two-handed rake, bite, headbutt, stomp, tail sweep, a running charge, acid
+  breath, a low claws-first pounce, and roar. The kaiju fights with its body only, no projectiles besides its breath. Every fight starts from random positions. Buildings in the way collapse into dust and fire. The AI fights in phases (close in, trade blows,
   now and then break apart with a thruster backstep or a hop and circle at range, come back), so they are not always in a clinch. Knockdowns are rare, and getting up takes a while: roll up to a kneel, push up to standing.
+- **Weight**: every joint above the hips moves on a damped spring, so limbs carry through and settle; each footfall sinks the
+  body and nods the head a beat later, the upper body lags behind changes of speed, the tail lifts as a counterweight, and the
+  legs always step at the body's real ground speed (lunges, the charge and being knocked back all walk). Moves play a little
+  slower than they used to, the kaiju more so.
 - **Special moves** (a power meter fills from dealing and taking damage): the jaeger's missile barrage (飛彈齊射) and
   a thruster leap into a plasma-blade slash (電漿劍 · 天降斬); the kaiju's atomic heat beam (原子熱線), which sweeps
   after its target and cuts through buildings, and a leaping quake stomp (震地踐踏). Each gets a hero shot, a wide shot

@@ -5,12 +5,14 @@ function softTex() {
   const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
   // a lumpy puff: several soft blobs, so smoke does not look like perfect circles
   for (let i = 0; i < 14; i++) { const x = 64 + (Math.random() - 0.5) * 50, y = 64 + (Math.random() - 0.5) * 50, r = 20 + Math.random() * 30, grd = g.createRadialGradient(x, y, 0, x, y, r); grd.addColorStop(0, 'rgba(255,255,255,.35)'); grd.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = grd; g.fillRect(0, 0, 128, 128); }
+  // fade to nothing well inside the square, so a rotated sprite never shows the texture's edge as a hard dark box
+  g.globalCompositeOperation = 'destination-in'; const m = g.createRadialGradient(64, 64, 0, 64, 64, 64); m.addColorStop(0, 'rgba(0,0,0,1)'); m.addColorStop(0.6, 'rgba(0,0,0,1)'); m.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = m; g.fillRect(0, 0, 128, 128);
   const t = new THREE.CanvasTexture(c); return t;
 }
 const VERT = `attribute float aSize; attribute float aAlpha; attribute vec3 aColor; attribute float aRot; varying float vA; varying vec3 vC; varying float vR;
-  void main(){ vec4 mv = modelViewMatrix * vec4(position,1.); gl_Position = projectionMatrix * mv; gl_PointSize = aSize * (900. / -mv.z); vA = aAlpha; vC = aColor; vR = aRot; }`;
+  void main(){ vec4 mv = modelViewMatrix * vec4(position,1.); gl_Position = projectionMatrix * mv; gl_PointSize = min(aSize * (900. / max(-mv.z, .1)), 512.); vA = aAlpha * smoothstep(2., 10., -mv.z); vC = aColor; vR = aRot; }`;
 const FRAG = `uniform sampler2D uTex; varying float vA; varying vec3 vC; varying float vR;
-  void main(){ vec2 p = gl_PointCoord - .5; float c = cos(vR), s = sin(vR); p = mat2(c,-s,s,c) * p + .5; vec4 t = texture2D(uTex, p); gl_FragColor = vec4(vC, t.a * vA); if (gl_FragColor.a < .003) discard; }`;
+  void main(){ vec2 p = gl_PointCoord - .5; float c = cos(vR), s = sin(vR); float e = 1. - smoothstep(.4, .5, length(p)); p = mat2(c,-s,s,c) * p + .5; vec4 t = texture2D(uTex, p); gl_FragColor = vec4(vC, t.a * vA * e); if (gl_FragColor.a < .003) discard; }`;
 // one pool of particles drawn in one call
 class Pool {
   constructor(scene, max, blending, tex) {

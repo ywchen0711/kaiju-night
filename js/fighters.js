@@ -3,7 +3,7 @@
 // armour plates following the limbs), staggers, knockdowns, death, hit detection, and an AI that fights in phases:
 // close in, trade blows, break apart and circle, then come back with a special move.
 import * as THREE from 'three';
-import { SHORE } from './world.js?v=2';
+import { SHORE } from './world.js?v=3';
 import { buildRobot, buildKaiju } from './models.js?v=3';
 
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -46,16 +46,23 @@ const KAIJU_MOVES = {
   swipe: { dur: 0.9, hit: [0.42, 0.58], at: 'handR', dmg: 52, knock: 12, keys: [[0, {}], [0.35, { shR: [-1.6, 0.6, 1.0], elR: [-0.6, 0, 0], fingR: [-0.7, 0, 0], twist: 0.5 }], [0.55, { shR: [-1.0, -0.8, -0.6], elR: [-0.2, 0, 0], fingR: [0.7, 0, 0], twist: -0.6, fwd: 20 }], [1, {}]] },
   bite: { dur: 1.0, hit: [0.48, 0.6], at: 'head', dmg: 80, knock: 10, keys: [[0, {}], [0.4, { neck: [-0.5, 0, 0], head: [-0.4, 0, 0], jaw: [0.9, 0, 0], lean: -0.2 }], [0.55, { neck: [0.45, 0, 0], head: [0.2, 0, 0], jaw: [0.05, 0, 0], lean: 0.3, fwd: 32 }], [0.8, { jaw: [0.2, 0, 0] }], [1, {}]] },
   tail: { dur: 1.5, hit: [0.4, 0.7], at: 'tail8', dmg: 72, knock: 30, spin: true, keys: [[0, {}], [0.25, { lean: 0.1, dip: 3 }], [0.55, { lean: 0.15, dip: 3 }], [1, {}]] },
-  charge: { dur: 1.7, hit: [0.45, 0.8], at: 'head', dmg: 90, knock: 34, keys: [[0, {}], [0.3, { lean: 0.35, neck: [0.4, 0, 0], head: [0.3, 0, 0], dip: 4 }], [0.45, { lean: 0.45, neck: [0.5, 0, 0], head: [0.4, 0, 0], fwd: 75 }], [0.8, { lean: 0.4, fwd: 60 }], [1, {}]] },
+  charge: { dur: 1.9, hit: [0.45, 0.8], at: 'head', dmg: 90, knock: 34, pump: [0.3, 0.84],
+    keys: [[0, {}], [0.22, { lean: 0.2, neck: [-0.2, 0, 0], head: [-0.15, 0, 0], jaw: [0.5, 0, 0], dip: 6, fingL: [-0.6, 0, 0], fingR: [-0.6, 0, 0] }], [0.34, { lean: 0.42, neck: [0.45, 0, 0], head: [0.3, 0, 0], dip: 3, fwd: 30, fingL: [-0.6, 0, 0], fingR: [-0.6, 0, 0] }],
+      [0.48, { lean: 0.5, neck: [0.55, 0, 0], head: [0.4, 0, 0], jaw: [0.3, 0, 0], fwd: 72, fingL: [-0.5, 0, 0], fingR: [-0.5, 0, 0] }], [0.8, { lean: 0.45, neck: [0.5, 0, 0], head: [0.35, 0, 0], fwd: 58, fingL: [-0.4, 0, 0], fingR: [-0.4, 0, 0] }],
+      [0.92, { lean: 0.15, dip: 5, fwd: 6 }], [1, {}]] },
   acid: { dur: 2.4, breath: [0.3, 0.85], dps: 55, keys: [[0, {}], [0.2, { neck: [-0.4, 0, 0], head: [-0.3, 0, 0], jaw: [0.5, 0, 0], lean: -0.15 }], [0.3, { neck: [0.25, 0, 0], head: [0.1, 0, 0], jaw: [1.0, 0, 0], lean: 0.1 }], [0.85, { neck: [0.25, 0, 0], head: [0.1, 0, 0], jaw: [1.0, 0, 0], lean: 0.1 }], [1, {}]] },
   roar: { dur: 2.2, roar: 0.25, keys: [[0, {}], [0.2, { neck: [-0.7, 0, 0], head: [-0.5, 0, 0], jaw: [1.1, 0, 0], lean: -0.35, shL: [-1, 0, -0.8], shR: [-1, 0, 0.8], fingL: [-0.7, 0, 0], fingR: [-0.7, 0, 0] }], [0.85, { neck: [-0.7, 0.1, 0], head: [-0.6, 0, 0], jaw: [1.15, 0, 0], lean: -0.35, shL: [-1.1, 0, -0.9], shR: [-1.1, 0, 0.9], fingL: [-0.7, 0, 0], fingR: [-0.7, 0, 0] }], [1, {}]] },
-  // a stomp that cracks the street, a two-handed claw rake, a skull-first headbutt, and a volley of glowing spines shot off its back
+  // a stomp that cracks the street, a two-handed claw rake, a skull-first headbutt, and a pounce: a crouch, a low heavy leap, claws first
   stomp: { dur: 1.3, quake: 0.5, qr: 44, dmg: 45, knock: 14, keys: [[0, {}], [0.3, { hipR: [-1.1, 0, 0.1], kneeR: [1.3, 0, 0], ankleR: [-0.2, 0, 0], lean: -0.15, shL: [-0.6, 0, -0.5], shR: [-0.6, 0, 0.5] }], [0.5, { hipR: [-0.05, 0, 0], kneeR: [0.1, 0, 0], lean: 0.2, dip: 4 }], [0.75, { dip: 3 }], [1, {}]] },
   rake: { dur: 1.3, hits: [{ t: [0.25, 0.4], at: 'handR', dmg: 34, knock: 6 }, { t: [0.55, 0.72], at: 'handL', dmg: 44, knock: 14 }],
     keys: [[0, {}], [0.18, { shR: [-1.7, 0.6, 1.0], elR: [-0.6, 0, 0], fingR: [-0.7, 0, 0], twist: 0.5 }], [0.34, { shR: [-0.9, -0.8, -0.5], elR: [-0.2, 0, 0], fingR: [0.7, 0, 0], twist: -0.4, fwd: 18, shL: [-1.7, -0.6, -1.0], elL: [-0.6, 0, 0], fingL: [-0.7, 0, 0] }],
       [0.62, { shL: [-0.9, 0.8, 0.5], elL: [-0.2, 0, 0], fingL: [0.7, 0, 0], twist: 0.55, fwd: 18, shR: [-0.5, 0, 0.3] }], [1, {}]] },
   headbutt: { dur: 1.1, hit: [0.45, 0.62], at: 'head', dmg: 62, knock: 20, keys: [[0, {}], [0.35, { neck: [-0.6, 0, 0], head: [-0.4, 0, 0], lean: -0.3, dip: 3 }], [0.52, { neck: [0.6, 0, 0], head: [0.5, 0, 0], lean: 0.5, fwd: 40, dip: 5 }], [0.75, { neck: [0.3, 0, 0], lean: 0.3 }], [1, {}]] },
-  spines: { dur: 2.4, volley: [0.35, 0.75, 10], keys: [[0, {}], [0.25, { lean: 0.35, neck: [0.3, 0, 0], dip: 4, shL: [-0.3, 0, -0.5], shR: [-0.3, 0, 0.5], jaw: [0.5, 0, 0] }], [0.8, { lean: 0.4, neck: [0.35, 0, 0], dip: 5, jaw: [0.6, 0, 0] }], [1, {}]] },
+  pounce: { dur: 2.0, leap: [0.34, 0.56], gap: 2, track: 0.7, hit: [0.5, 0.66], at: 'handR', hitR: 13, dmg: 95, knock: 28, down: 0.3, land: 0.56,
+    keys: [[0, {}], [0.3, { dip: 11, lean: 0.4, neck: [0.25, 0, 0], head: [-0.2, 0, 0], jaw: [0.4, 0, 0], shL: [0.35, 0, -0.45], shR: [0.35, 0, 0.45], elL: [-0.9, 0, 0], elR: [-0.9, 0, 0], fingL: [-0.5, 0, 0], fingR: [-0.5, 0, 0] }],
+      [0.44, { rise: 16, lean: -0.05, neck: [-0.15, 0, 0], jaw: [1.0, 0, 0], shL: [-2.2, 0, -0.45], shR: [-2.2, 0, 0.45], elL: [-0.25, 0, 0], elR: [-0.25, 0, 0], fingL: [-0.85, 0, 0], fingR: [-0.85, 0, 0] }],
+      [0.56, { rise: 1, dip: 6, lean: 0.5, neck: [0.35, 0, 0], jaw: [0.7, 0, 0], shL: [-1.2, 0, -0.3], shR: [-1.2, 0, 0.3], elL: [-0.15, 0, 0], elR: [-0.15, 0, 0], fingL: [0.7, 0, 0], fingR: [0.7, 0, 0] }],
+      [0.7, { dip: 10, lean: 0.45, neck: [0.3, 0, 0], jaw: [0.4, 0, 0], shL: [-0.9, 0, -0.35], shR: [-0.9, 0, 0.35], fingL: [0.6, 0, 0], fingR: [0.6, 0, 0] }], [1, {}]] },
   // a heavy hop backwards out of the clinch
   hop: { dur: 1.15, land: 0.68, keys: [[0, {}], [0.22, { dip: 6, lean: 0.15 }], [0.45, { rise: 9, fwd: -95, lean: -0.2, shL: [-0.8, 0, -0.5], shR: [-0.8, 0, 0.5] }], [0.68, { fwd: -40, dip: 7, lean: 0.12 }], [1, {}]] },
   // special: a light climbs the dorsal plates twice, then a beam of blue fire that sweeps after its target, cutting through buildings
@@ -94,7 +101,9 @@ export class Fighter {
     this.pos = new THREE.Vector3(0, 0, kind === 'robot' ? 90 : -40); this.yaw = kind === 'robot' ? Math.PI : 0; this.yawVel = 0;
     this.vel = new THREE.Vector3(); this.speed = 0; this.phase = 0; this.act = null; this.stun = 0; this.down = 0; this.block = false; this.alive = true; this.dash = 0;
     this.R = kind === 'robot' ? 13 : 24; this.cd = {}; this.lastStep = 0; this.events = []; this.ventT = rnd(4, 8); this.breatheT = rnd(1, 3);
-    this.moves = kind === 'robot' ? ROBOT_MOVES : KAIJU_MOVES;
+    this.moves = kind === 'robot' ? ROBOT_MOVES : KAIJU_MOVES; this.tempo = kind === 'robot' ? 1.06 : 1.14;
+    // weight: joints move on damped springs (so limbs carry through and settle), the body sinks on each footfall
+    this.jv = {}; this.bodyY = 0; this.bodyV = 0; this.gSpeed = 0; this.accLean = 0;
     this.meter = 25; this.air = 0; this.bladeK = 0; this.thrustK = 0;
     // a knockdown: 0.8 s to fall, a while on the ground, then a slow get-up (roll up to a kneel, push up to standing)
     this.downDur = kind === 'robot' ? 4.6 : 5.2; this.riseT = kind === 'robot' ? 2.2 : 2.8;
@@ -115,7 +124,7 @@ export class Fighter {
     if (!m || !this.can() || (this.cd[name] || 0) > 0) return false;
     if (m.super) { if (this.meter < 100) return false; this.meter = 0; }
     this.act = { name, m, t: 0, hitDone: false, shotDone: false, fired: 0 };
-    this.cd[name] = { plasma: 7, acid: 6, roar: 9, charge: 4.5, tail: 3, backstep: 2.2, hop: 3, missiles: 6, blade: 6, beam: 6, quake: 6, hammer: 2, combo: 2.5, rocket: 5, stomp: 3, rake: 1.5, headbutt: 1.5, spines: 7 }[name] || 0;
+    this.cd[name] = { plasma: 7, acid: 6, roar: 9, charge: 4.5, tail: 3, backstep: 2.2, hop: 3, missiles: 6, blade: 6, beam: 6, quake: 6, hammer: 2, combo: 2.5, rocket: 5, stomp: 3, rake: 1.5, headbutt: 1.5, pounce: 7 }[name] || 0;
     this.emit('attack', { name, super: !!m.super }); return true;
   }
   // the opponent's body, as a vertical capsule
@@ -133,7 +142,7 @@ export class Fighter {
     // a special move in progress shrugs off ordinary blows (super armour); a grazing beam burns without staggering
     const armour = this.act && this.act.m.super && !o.down;
     if (!blocked && !o.graze) {
-      this.hitT = 0; this.hitSide = Math.random() < 0.5 ? -1 : 1; this.hitPow = Math.min(1, knock / 25 + 0.3) * (armour ? 0.4 : 1);
+      this.hitT = 0; this.hitSide = Math.random() < 0.5 ? -1 : 1; this.hitPow = Math.min(1, knock / 25 + 0.3) * (armour ? 0.4 : 1); this.bodyV -= this.hitPow * 14;
       if (!armour) { this.stun = Math.max(this.stun, Math.min(1.1, 0.25 + knock / 40)); this.act = null; this.spinYaw = 0; const floored = o.down === true || (typeof o.down === 'number' && Math.random() < o.down) || (knock >= 30 && Math.random() < 0.22); if (floored && this.down <= 0) this.down = this.downDur; }
     }
     if (this.hp <= 0) this.die();
@@ -163,7 +172,7 @@ export class Fighter {
     const mv = (this.moveDir || this.face()).clone().multiplyScalar(this.speed * dt);
     let pose = {};
     if (this.act) {
-      const a = this.act, m = a.m; a.t += dt; const p = Math.min(1, a.t / m.dur);
+      const a = this.act, m = a.m; a.t += dt; const p = Math.min(1, a.t / (m.dur * this.tempo));
       pose = sampleKeys(m.keys, p);
       if (pose.fwd) mv.addScaledVector(this.face(), pose.fwd * dt * (pose.fwd < 0 || dist > this.R + opp.R + 4 ? 1 : 0.1));
       // a leap: cover the distance to the opponent in the air, landing (gap) short of them
@@ -183,12 +192,6 @@ export class Fighter {
       });
       // jets on a limb (the rocket punch)
       if (m.jet && (pose.thrust || 0) > 0.3) this.emit('thrust', { ps: [this.wp(m.jet, [0, 1, -3])], dir: this.face().negate(), k: pose.thrust });
-      // a volley of spines torn off the dorsal plates
-      if (m.volley) {
-        const [s0, s1, n] = m.volley, want = p < s0 ? 0 : Math.min(n, Math.floor((p - s0) / (s1 - s0) * n) + 1);
-        if (a.fired < want) this.root.updateMatrixWorld(true);
-        while (a.fired < want) { a.fired++; const pl = this.plates[Math.floor(Math.random() * this.plates.length)]; this.emit('spine', { from: pl.localToWorld(new THREE.Vector3(0, 0.9, 0)), target: opp }); }
-      }
       if (m.shot && !a.shotDone && p >= m.shot) { a.shotDone = true; this.emit('shoot', { from: this.wp('fistR', [0, -6, 0]), dir: opp.pos.clone().setY(40).sub(this.wp('fistR')).normalize(), dmg: m.dmg }); }
       if (m.breath && p >= m.breath[0] && p <= m.breath[1]) {
         const mouth = this.wp('head', [0, -3.5, 15.5]), dir = this.wp('head', [0, -6.5, 40]).sub(mouth).normalize();
@@ -226,7 +229,7 @@ export class Fighter {
       }
       // a landing shockwave: knocks the opponent flat if it is a stomp, and brings down the buildings around
       if (m.quake !== undefined && !a.quaked && p >= m.quake) {
-        a.quaked = true; const c = this.pos.clone().setY(0);
+        a.quaked = true; const c = this.pos.clone().setY(0); this.bodyV -= robot ? 34 : 46;
         this.emit('quake', { p: c, r: m.qr, big: !m.at && m.qr > 50 });
         if (!m.at && m.dmg) {
           const dd = Math.max(0, Math.hypot(opp.pos.x - c.x, opp.pos.z - c.z) - opp.R);
@@ -234,7 +237,7 @@ export class Fighter {
         }
         for (const b of world.buildings) if (b.alive && Math.hypot(b.x - c.x, b.z - c.z) < m.qr * 0.7 + Math.max(b.w, b.d) / 2) { if (world.collapse(b)) this.emit('smash', { b }); }
       }
-      if (m.land && !a.landed && p >= m.land) { a.landed = true; this.emit('land', { p: this.pos.clone().setY(0), power: robot ? 1 : 1.4 }); }
+      if (m.land && !a.landed && p >= m.land) { a.landed = true; this.bodyV -= robot ? 30 : 40; this.emit('land', { p: this.pos.clone().setY(0), power: robot ? 1 : 1.4 }); }
       if (p >= 1) { if (robot && (m.knock >= 20 || m.super)) this.ventT = 0.3; this.act = null; this.spinYaw = 0; }
     }
     this.air = this.act ? Math.max(0, pose.rise || 0) : 0;
@@ -243,6 +246,12 @@ export class Fighter {
     if (robot && this.thrustK > 0.15) { this.root.updateMatrixWorld(true); this.emit('thrust', { ps: this.j.nozzles.map((v) => this.j.chest.localToWorld(v.clone())), dir: new THREE.Vector3(0, -0.85, -0.52).transformDirection(this.j.chest.matrixWorld), k: this.thrustK }); }
     mv.addScaledVector(this.vel, dt); this.vel.multiplyScalar(Math.exp(-dt * 2.2));
     this.pos.add(mv);
+    const gv = Math.hypot(mv.x, mv.z) / Math.max(dt, 1e-4), g0 = this.gSpeed;
+    this.gSpeed += (gv - this.gSpeed) * (1 - Math.exp(-dt * 7));
+    if (gv > 0.5) { const d = new THREE.Vector3(mv.x, 0, mv.z).normalize(); this.gDir = this.gDir ? this.gDir.lerp(d, 1 - Math.exp(-dt * 8)).normalize() : d; }
+    // the upper body lags behind changes of speed: it rocks back as the body sets off, sways forward as it pulls up
+    const acc = clamp((this.gSpeed - g0) / Math.max(dt, 1e-4), -120, 120);
+    this.accLean += (-acc * (robot ? 0.0022 : 0.003) - this.accLean) * (1 - Math.exp(-dt * 3));
     const sep = this.pos.clone().sub(opp.pos).setY(0), sd = sep.length(), minD = this.R + opp.R;
     if (sd < minD && sd > 0.01) this.pos.addScaledVector(sep.normalize(), (minD - sd) * 0.5);
     this.pos.x = clamp(this.pos.x, -420, 420); this.pos.z = clamp(this.pos.z, SHORE - 160, 520);
@@ -258,13 +267,13 @@ export class Fighter {
       }
     }
     // the gait: slow, heavy strides; turning on the spot also steps
-    const stepSp = Math.max(this.speed, Math.abs(this.yawVel) * 9);
-    this.gait = Math.min(3, stepSp / 10);
+    const stepSp = this.air > 2 ? this.speed : Math.max(this.gSpeed, Math.abs(this.yawVel) * 9);
+    this.gait = Math.min(6, stepSp / 10);
     this.stepRate = (robot ? 0.75 : 0.65) + this.gait * (robot ? 1.35 : 1.2);
     if (stepSp > 0.4) this.phase += dt * this.stepRate;
     this.stepSp = stepSp;
     const cyc = Math.floor(this.phase / Math.PI);
-    if (cyc !== this.lastStep) { this.lastStep = cyc; if (stepSp > 1.5 && this.alive && this.down <= 0) { const S = cyc % 2 ? 'R' : 'L'; this.emit('step', { p: this.wp('ankle' + S, [0, -2, 3]), power: robot ? 1 : 1.25, water: this.pos.z < SHORE }); } }
+    if (cyc !== this.lastStep) { this.lastStep = cyc; if (stepSp > 1.5 && this.alive && this.down <= 0 && this.air < 2) { const S = cyc % 2 ? 'R' : 'L', pw = (robot ? 1 : 1.25) * (0.8 + Math.min(1.2, this.gait * 0.25)); this.bodyV -= (robot ? 9 : 12) * Math.min(1.6, 0.6 + this.gait * 0.3); this.emit('step', { p: this.wp('ankle' + S, [0, -2, 3]), power: pw, water: this.pos.z < SHORE }); } }
     // little lives: steam from the robot's back, the kaiju's breath in the cold rain
     if (this.alive) {
       if (robot && (this.ventT -= dt) < 0) { this.ventT = rnd(7, 12); this.emit('vent', { ps: this.j.vents.map((v) => this.j.chest.localToWorld(v.clone())), up: this.wp('chest', [0, 30, -10]).sub(this.wp('chest', [0, 20, -10])).normalize() }); }
@@ -289,7 +298,12 @@ export class Fighter {
   animate(dt, act, opp) {
     const j = this.j, robot = this.kind === 'robot', T = {}, now = performance.now() / 1000;
     const set = (n, x = 0, y = 0, z = 0) => { T[n] = [x, y, z]; };
-    const sp = this.stepSp || 0, k = Math.min(1, sp / 2.5), g1 = Math.min(1, this.gait || 0), ph = this.phase;
+    const sp = this.stepSp || 0, k = Math.min(1, sp / 2.5), g1 = Math.min(1, this.gait || 0), g2 = clamp(((this.gait || 0) - 1) / 3, 0, 1), ph = this.phase;
+    // the settle spring: each footfall pushes the body down, it sinks a little and comes back up (heavier for the kaiju)
+    { const w = robot ? 15 : 11, z = robot ? 0.55 : 0.5, n = Math.ceil(dt * w / 0.3), h = dt / n;
+      for (let i = 0; i < n; i++) { this.bodyV += (-w * w * this.bodyY - 2 * z * w * this.bodyV) * h; this.bodyY += this.bodyV * h; }
+      this.bodyY = clamp(this.bodyY, -4, 2); }
+    const sink = this.bodyY;
     const br = Math.sin(now * (robot ? 1.1 : 0.75));
     const look = clamp(wrap(Math.atan2(opp.pos.x - this.pos.x, opp.pos.z - this.pos.z) - this.yaw - (this.spinYaw || 0)), -0.7, 0.7);
     // falling (knocked down or dead)
@@ -305,11 +319,11 @@ export class Fighter {
     // the body rides up over the planted leg (an inverted pendulum), lowest as each foot lands
     const water = this.pos.z < SHORE ? -6 : 0;
     const air = this.air || 0, tuck = Math.min(1, air / 12);
-    const rootY = (robot ? -1.2 : 0) - (act.dip || 0) - crouch * (robot ? 11 : 13) + air + (robot ? 1.3 : 1.0) * k * g1 * (0.5 - 0.5 * Math.cos(2 * ph));
+    const rootY = (robot ? -1.2 : 0) - (act.dip || 0) - crouch * (robot ? 11 : 13) + air + (robot ? 1.3 : 1.0) * k * g1 * (0.5 - 0.5 * Math.cos(2 * ph)) * (1 - 0.3 * g2) - g2 * (robot ? 2 : 3) + (air > 1 ? 0 : sink);
     // legs: stance feet slide back under the body at walking speed, swing feet arc forward
     if (fall < 0.05) {
-      const S = Math.min(26, (this.speed || 0) * Math.PI / Math.max(0.5, this.stepRate || 1)), H = (1.5 + S * 0.22) * k;
-      const md = this.moveDir || this.face(), cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
+      const S = Math.min(30, (this.gSpeed || 0) * Math.PI / Math.max(0.5, this.stepRate || 1)), H = (1.5 + S * 0.22) * k;
+      const md = this.gDir || this.moveDir || this.face(), cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
       const lz = md.x * sy + md.z * cy, lx = md.x * cy - md.z * sy;
       for (const [side, off] of [['L', 0], ['R', Math.PI]]) {
         const f = (((ph + off) % TAU) + TAU) % TAU; let z, lift = 0, toe = 0;
@@ -325,7 +339,7 @@ export class Fighter {
     } else if (up >= 0) { const kn = 1 - fall * 0.7; for (const S of ['L', 'R']) { set('hip' + S, -1.5 * kn, 0, S === 'L' ? -0.1 : 0.1); set('knee' + S, 2.2 * kn, 0, 0); set('ankle' + S, -0.7 * kn, 0, 0); set('toe' + S, 0.3 * kn, 0, 0); } }
     else for (const n of LEGJ) set(n, 0, 0, 0);
     if (robot) {
-      const guard = this.block ? 1 : 0.72, sw = Math.sin(ph) * 0.16 * k * g1;
+      const guard = this.block ? 1 : 0.72, sw = Math.sin(ph) * (0.16 + 0.3 * g2) * k * g1;
       set('shL', -0.85 * guard + sw, 0, -0.12); set('shR', -0.85 * guard - sw, 0, 0.12);
       set('elL', -1.75 * guard + br * 0.03, 0, 0); set('elR', -1.75 * guard - br * 0.03, 0, 0); set('fistL', 0.15, 0, 0); set('fistR', 0.15, 0, 0);
       if (this.block) { set('shL', -1.6, 0.4, 0.2); set('shR', -1.6, -0.4, -0.2); set('elL', -2.2, 0, 0); set('elR', -2.2, 0, 0); }
@@ -342,8 +356,12 @@ export class Fighter {
       set('neck', -0.03 + br * 0.025 - 0.04 * g1, look * 0.35, Math.sin(now * 0.23) * 0.03);
       set('head', 0.05 + Math.sin(now * 0.5) * 0.03 + 0.05 * g1, look * 0.3, Math.sin(now * 0.31) * 0.04);
       set('jaw', 0.05 + Math.max(0, br) * 0.07, 0, 0);
-      set('shL', -0.12 + Math.sin(ph) * 0.15 * k, 0, -0.1); set('shR', -0.12 - Math.sin(ph) * 0.15 * k, 0, 0.1);
-      set('elL', -0.35 + br * 0.04, 0, 0); set('elR', -0.35 + br * 0.04, 0, 0); set('handL', 0.25, 0, 0); set('handR', 0.25, 0, 0);
+      // arms: a heavy swing against the legs; in a charge they come forward, elbows bent, pumping with each stride
+      const pm = this.act && this.act.m.pump ? (() => { const q = this.act.t / (this.act.m.dur * this.tempo), [p0, p1] = this.act.m.pump; return q < p0 || q > p1 ? 0 : Math.sin(Math.PI * clamp((q - p0) / (p1 - p0), 0, 1)) ** 0.5; })() : 0;
+      const aw = (0.15 + 0.25 * g2) * k + pm * 0.35, ab = -0.12 - pm * 0.75 - g2 * 0.2;
+      set('shL', ab + Math.sin(ph) * aw, 0, -0.1 - pm * 0.25); set('shR', ab - Math.sin(ph) * aw, 0, 0.1 + pm * 0.25);
+      set('elL', -0.35 - pm * 0.7 - g2 * 0.25 + br * 0.04 - Math.max(0, Math.sin(ph)) * pm * 0.4, 0, 0); set('elR', -0.35 - pm * 0.7 - g2 * 0.25 + br * 0.04 - Math.max(0, -Math.sin(ph)) * pm * 0.4, 0, 0);
+      set('handL', 0.25 - pm * 0.2, 0, 0); set('handR', 0.25 - pm * 0.2, 0, 0);
       set('fingL', 0.15 + Math.max(0, br) * 0.08, 0, 0); set('fingR', 0.15 + Math.max(0, br) * 0.08, 0, 0);
       // the tail: swings opposite to turns and trails behind, each segment lagging the one before
       this.tailS = this.tailS || j.tail.map(() => [0, 0]);
@@ -351,7 +369,7 @@ export class Fighter {
       j.tail.forEach((b, i) => {
         const st = this.tailS[i];
         const ty = -this.yawVel * 0.2 * (0.5 + i * 0.1) + Math.sin(now * 0.9 - i * 0.45) * (0.025 + 0.03 * k) + Math.sin(ph - i * 0.4) * 0.05 * k * g1 - (spin ? 0.12 : 0);
-        const tx = 0.02 * g1 + Math.sin(now * 0.6 - i * 0.4) * 0.012 + spin * 0.05;
+        const tx = 0.02 * g1 + Math.sin(now * 0.6 - i * 0.4) * 0.012 + spin * 0.05 + (act.lean || 0) * 0.035 + g2 * 0.02 - sink * 0.012 * (i < 6 ? 1 : -0.6);
         const r = 1 - Math.exp(-dt * Math.max(1.5, 7 - i * 0.45));
         st[0] += (tx - st[0]) * r; st[1] += (ty - st[1]) * r; set('tail' + i, st[0], st[1], 0);
       });
@@ -363,7 +381,8 @@ export class Fighter {
     // reacting to a blow: the body snaps back and twists, then recovers
     this.hitT = (this.hitT ?? 9) + dt;
     const hk = this.hitT < 0.9 ? Math.sin(Math.min(1, this.hitT / 0.12) * Math.PI / 2) * Math.exp(-this.hitT * 4) * (this.hitPow || 0.5) : 0;
-    let lean = (act.lean || 0) - 0.45 * hk + 0.55 * crouch, twist = (act.twist || 0) + 0.3 * hk * (this.hitSide || 1);
+    let lean = (act.lean || 0) - 0.45 * hk + 0.55 * crouch + (this.down > 0 || !this.alive ? 0 : clamp(this.accLean, -0.12, 0.12) + g2 * (robot ? 0.16 : 0.12) - sink * 0.018), twist = (act.twist || 0) + 0.3 * hk * (this.hitSide || 1);
+    { const h = robot ? 'head' : 'neck'; if (T[h]) T[h] = [T[h][0] + sink * 0.03, T[h][1], T[h][2]]; for (const S of ['L', 'R']) if (T['sh' + S] && !(act['sh' + S])) T['sh' + S] = [T['sh' + S][0] - sink * 0.03, T['sh' + S][1], T['sh' + S][2]]; }
     if (hk > 0) { const h = robot ? 'head' : 'neck'; if (T[h]) T[h] = [T[h][0] - 0.4 * hk, T[h][1] + 0.3 * hk * (this.hitSide || 1), T[h][2]]; }
     if (T.spine) { T.spine = [T.spine[0] + lean, T.spine[1] + twist, T.spine[2]]; }
     if (robot && T.chest) T.chest = [T.chest[0], T.chest[1] + twist * 0.5, T.chest[2]];
@@ -382,10 +401,22 @@ export class Fighter {
       j['fing' + S].rotation.x = c * 0.2;
       for (const f of j['kf' + S]) { f.prox.rotation.set((f.thumb ? 0.2 : 0.3) + c * (f.thumb ? 0.55 : 0.75), f.spread * open * 0.35, 0); f.mid.rotation.x = 0.35 + c * 0.9; }
     }
+    // a spring per joint: the heavy parts (spine, chest, shoulders) are slower and swing past a little, the hands and head quicker
+    const W0 = robot ? (this.act ? 21 : 12) : (this.act ? 17 : 9), Z = robot ? 0.78 : 0.68;
     for (const [name, v] of Object.entries(T)) {
       const gj = j[name]; if (!gj || Array.isArray(gj)) continue;
-      const kk = LEGJ.has(name) ? (fall > 0.05 || up >= 0 ? slowK : fast) : name.startsWith('tail') ? fast : base;
-      gj.rotation.x += (v[0] - gj.rotation.x) * kk; gj.rotation.y += (v[1] - gj.rotation.y) * kk; gj.rotation.z += (v[2] - gj.rotation.z) * kk;
+      if (LEGJ.has(name) || name.startsWith('tail') || fall > 0.05 || up >= 0) {
+        const kk = LEGJ.has(name) ? (fall > 0.05 || up >= 0 ? slowK : fast) : name.startsWith('tail') ? fast : base;
+        gj.rotation.x += (v[0] - gj.rotation.x) * kk; gj.rotation.y += (v[1] - gj.rotation.y) * kk; gj.rotation.z += (v[2] - gj.rotation.z) * kk;
+        if (this.jv[name]) this.jv[name].set(0, 0, 0);
+        continue;
+      }
+      const heavy = name === 'spine' || name === 'chest' || name === 'pelvis' || name === 'neck0' ? 0.75 : name.startsWith('sh') || name === 'neck' ? 0.9 : name.startsWith('el') ? 1.05 : 1.25;
+      const w = W0 * heavy, n = Math.ceil(dt * w / 0.35), h = dt / n, jv = this.jv[name] || (this.jv[name] = new THREE.Vector3()), r = gj.rotation;
+      for (let i = 0; i < n; i++) {
+        jv.x += ((v[0] - r.x) * w * w - 2 * Z * w * jv.x) * h; jv.y += ((v[1] - r.y) * w * w - 2 * Z * w * jv.y) * h; jv.z += ((v[2] - r.z) * w * w - 2 * Z * w * jv.z) * h;
+        r.x += jv.x * h; r.y += jv.y * h; r.z += jv.z * h;
+      }
     }
     // secondary parts of the robot: pauldrons lift with the arms, thigh plates swing with the legs, fingertips follow the knuckles
     if (robot) for (const [S, s] of [['L', -1], ['R', 1]]) {
@@ -410,7 +441,7 @@ export class Fighter {
       // acid and beam: before the breath a pulse of light climbs from the tail to the head (twice for the beam), then the whole back blazes
       const ch = a && (a.name === 'acid' || beam) ? { p: Math.min(1, a.t / a.m.dur), w: beam ? a.m.windup : 0.3, e: beam ? a.m.beam[1] : 0.85 } : null;
       this.bands.forEach((m, i) => {
-        let tgt = this.alive ? 0.9 + (1 - hpK) * 1.2 + roar * 3 + (a && a.name === 'spines' ? 4 + Math.sin(now * 25 + i) : 0) : 0.05;
+        let tgt = this.alive ? 0.9 + (1 - hpK) * 1.2 + roar * 3  : 0.05;
         if (ch) { const w = ch.p / ch.w, wv = beam ? (w * 2) % 1 : w; tgt = ch.p < ch.w ? 1.3 + 7 * Math.max(0, 1 - Math.abs(wv * 1.25 - i / 7) * 4) + w * 1.5 : ch.p < ch.e ? (beam ? 10 : 6) + Math.sin(now * 30 + i) * 0.8 : 2; }
         m.emissiveIntensity += (tgt - m.emissiveIntensity) * Math.min(1, dt * 14);
       });
@@ -460,7 +491,7 @@ export function think(me, opp, dt) {
     case 'approach':
       inp.move = 1; inp.strafe = A.circle * 0.25;
       if (robot) { if (d > 70 && Math.random() < dt * 0.22) me.start('plasma'); if (d > 20 && d < 70 && Math.random() < dt * 0.4) me.start('rocket'); if (d > 90 && Math.random() < dt * 0.4) me.dash = 0.5; }
-      else if (d > 50 && Math.random() < dt * 0.15) me.start('spines');
+      else if (d > 35 && d < 110 && Math.random() < dt * 0.18) me.start('pounce');
       else if (d > 60 && Math.random() < dt * 0.35) me.start('charge');
       else if (d > 20 && d < 90 && Math.random() < dt * 0.2) me.start('acid');
       if (ready && A.st > 0.8) go('super');
@@ -481,7 +512,7 @@ export function think(me, opp, dt) {
       if (A.retreat && me.start(A.retreat)) A.retreat = null; else if (A.st > 1) A.retreat = null;
       inp.move = d < A.range - 12 ? -0.85 : d > A.range + 25 ? 0.6 : 0; inp.strafe = A.circle * 0.85;
       if (robot) { if (d > 40 && Math.random() < dt * 0.15) me.start('plasma'); if (d > 20 && d < 75 && Math.random() < dt * 0.12) me.start('rocket'); }
-      else { if (A.taunt && me.start('roar')) A.taunt = false; if (Math.random() < dt * 0.06) me.start('roar'); if (d < 100 && Math.random() < dt * 0.2) me.start('acid'); if (d > 40 && Math.random() < dt * 0.15) me.start('spines'); if (d > 30 && d < 110 && Math.random() < dt * 0.1 && me.start('charge')) go('approach'); }
+      else { if (A.taunt && me.start('roar')) A.taunt = false; if (Math.random() < dt * 0.06) me.start('roar'); if (d < 100 && Math.random() < dt * 0.2) me.start('acid'); if (d > 35 && d < 110 && Math.random() < dt * 0.12) me.start('pounce'); if (d > 30 && d < 110 && Math.random() < dt * 0.1 && me.start('charge')) go('approach'); }
       if (A.st > A.len) go(ready ? 'super' : 'approach');
       break;
     case 'super': {

@@ -4,11 +4,11 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { buildWorld, SHORE } from './world.js?v=2';
-import { makeFx } from './fx.js?v=4';
-import { Fighter, think } from './fighters.js?v=5';
+import { buildWorld, SHORE } from './world.js?v=3';
+import { makeFx } from './fx.js?v=5';
+import { Fighter, think } from './fighters.js?v=6';
 import { Audio } from './audio.js?v=2';
-import { T, getLang, setLang, applyDom } from './i18n.js?v=2';
+import { T, getLang, setLang, applyDom } from './i18n.js?v=3';
 applyDom();
 
 const $ = (s) => document.querySelector(s);
@@ -43,6 +43,13 @@ const fx = makeFx(scene, q);
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
+// a NaN or an overflowed (infinite) pixel from any shader or a very close light would be smeared by the bloom blur into
+// flickering black blocks; clean the frame before it gets there
+composer.addPass(new ShaderPass({ uniforms: { tDiffuse: { value: null } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }',
+  fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv;
+    float ok(float x){ return x >= 0. && x < 1e4 ? x : (x >= 1e4 ? 40. : 0.); }
+    void main(){ vec4 c = texture2D(tDiffuse, vUv); gl_FragColor = vec4(min(vec3(ok(c.r), ok(c.g), ok(c.b)), vec3(40.)), 1.); }` }));
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.75, 0.55, 0.82); composer.addPass(bloom);
 // the camera: colour grade (cold shadows, warm highlights, low saturation), chromatic aberration, vignette, film grain, letterbox, hit flash
 const grade = new ShaderPass({
@@ -149,10 +156,6 @@ function handleEvents(f, opp) {
         break; }
       case 'shoot': shots.push({ p: e.from.clone(), dir: e.dir, dmg: e.dmg, life: 2, from: f }); Audio.zap(); bigHit(e.from, 0.5); break;
       case 'breath': fx.acid(e.from, e.dir); break;
-      case 'spine': {
-        const tgt = e.target.pos.clone().setY(e.target.kind === 'robot' ? 42 : 40).add(V(rnd(-10, 10), rnd(-14, 10), rnd(-10, 10))), Tf = 1.0 + e.from.distanceTo(tgt) / 420;
-        const v = tgt.sub(e.from).divideScalar(Tf); v.y += 0.5 * 55 * Tf;
-        shots.push({ spine: true, p: e.from.clone(), v, life: 4, target: e.target, from: f }); fx.sparks(e.from, 8, [0.4, 0.9, 1]); if (Math.random() < 0.5) Audio.whoosh(); break; }
       case 'missile': {
         const side = V(rnd(-1, 1), 0, rnd(-1, 1)).multiplyScalar(18);
         shots.push({ missile: true, p: e.from.clone(), v: e.dir.clone().multiplyScalar(70).add(side), sp: 90, t: 0, life: 4, target: e.target, from: f, jit: V(rnd(-9, 9), rnd(-14, 12), rnd(-9, 9)) });
@@ -194,7 +197,6 @@ function handleEvents(f, opp) {
 function updateShots(dt) {
   for (let i = shots.length - 1; i >= 0; i--) {
     if (shots[i].missile) { updateMissile(shots[i], i, dt); continue; }
-    if (shots[i].spine) { updateSpine(shots[i], i, dt); continue; }
     const s = shots[i], step = 320 * dt; s.life -= dt; fx.plasma(s.p, s.dir);
     let boom = s.life <= 0 || s.p.y < 0.5;
     const target = s.from === robot ? kaiju : robot;
@@ -221,20 +223,6 @@ function updateMissile(s, i, dt) {
   }
   fx.trail(s.p);
   if (boom) { fx.explosion(s.p, 0.45); Audio.explosion(0.5, camDist(s.p)); bigHit(s.p, 0.5); dangerAt(s.p, 9, 'blast'); shots.splice(i, 1); }
-}
-
-// a spine: a glowing shard thrown in an arc
-function updateSpine(s, i, dt) {
-  const target = s.target; s.life -= dt; s.v.y -= 55 * dt;
-  let boom = s.life <= 0, hit = false;
-  for (let k = 0; k < 3 && !boom; k++) {
-    s.p.addScaledVector(s.v, dt / 3);
-    if (s.p.y < 0.5) boom = true;
-    else if (target.alive && target.hitTest(target, s.p, 4)) { const d = target.takeHit(15, s.from, 4); s.from.emit('hit', { point: s.p.clone(), dmg: d, move: 'spine', heavy: false }); boom = hit = true; }
-    else if (inBuilding(s.p, 0) && s.p.y < inBuilding(s.p, 0).h) boom = true;
-  }
-  fx.trail(s.p, [0.4, 0.9, 1]);
-  if (boom) { fx.sparks(s.p, 24, [0.4, 0.9, 1]); fx.glow.add({ x: s.p.x, y: s.p.y, z: s.p.z, vx: 0, vy: 2, vz: 0, life: 0.5, size: 18, grow: 1.5, color: [0.3, 0.8, 1], alpha: 0.8 }); if (!hit) { fx.dust(s.p.x, s.p.z, 0.35); Audio.thud(0.5); } bigHit(s.p, 0.35); dangerAt(s.p, 7, 'blast'); shots.splice(i, 1); }
 }
 
 // the special move's name across the screen
@@ -375,7 +363,7 @@ const keys = new Set(); let gp = null;
 addEventListener('keydown', (e) => { if (e.repeat) return; keys.add(e.code); if (mode === 'pilot') pressed(e.code); if (e.code === 'Escape' && mode !== 'title') toTitle(); if (e.code === 'KeyM') toggleMute(); });
 addEventListener('keyup', (e) => keys.delete(e.code));
 const ROBOT_KEYS = { KeyJ: 'jab', KeyK: 'cross', KeyL: 'upper', KeyI: 'kick', KeyU: 'elbow', KeyO: 'hammer', KeyH: 'combo', KeyG: 'rocket', KeyQ: 'plasma', KeyE: 'missiles', KeyF: 'blade', KeyC: 'backstep' };
-const KAIJU_KEYS = { KeyJ: 'swipe', KeyK: 'bite', KeyL: 'tail', KeyI: 'charge', KeyU: 'rake', KeyO: 'headbutt', KeyH: 'stomp', KeyG: 'spines', KeyQ: 'acid', KeyR: 'roar', KeyE: 'beam', KeyF: 'quake', KeyC: 'hop' };
+const KAIJU_KEYS = { KeyJ: 'swipe', KeyK: 'bite', KeyL: 'tail', KeyI: 'charge', KeyU: 'rake', KeyO: 'headbutt', KeyH: 'stomp', KeyG: 'pounce', KeyQ: 'acid', KeyR: 'roar', KeyE: 'beam', KeyF: 'quake', KeyC: 'hop' };
 function pressed(code) {
   const map = pilot === robot ? ROBOT_KEYS : KAIJU_KEYS;
   if (map[code]) pilot.start(map[code]);
@@ -396,7 +384,7 @@ function pilotInput() {
     if (b[5] && !prev[5]) pilot.start(pilot === robot ? 'plasma' : 'acid');
     if (b[7] && !prev[7]) pressed('ShiftLeft');
     if (b[6] && !prev[6] && pilot === kaiju) pilot.start('roar');
-    // d-pad: up and down for the two special moves, left to back off, right for the rocket punch / spine volley; stick clicks for the combo and the hammer / stomp
+    // d-pad: up and down for the two special moves, left to back off, right for the rocket punch / pounce; stick clicks for the combo and the hammer / stomp
     [[12, 'KeyE'], [13, 'KeyF'], [14, 'KeyC'], [15, 'KeyG'], [10, 'KeyH'], [11, 'KeyO']].forEach(([k, c]) => { if (b[k] && !prev[k]) pressed(c); });
     block = block || b[4]; gp = b;
   }
@@ -455,7 +443,7 @@ function hud() {
   $('#hpRt').textContent = Math.ceil(robot.hp); $('#hpKt').textContent = Math.ceil(kaiju.hp);
   for (const [f, id] of [[robot, '#mtR'], [kaiju, '#mtK']]) { const el = $(id); el.style.width = f.meter + '%'; el.parentNode.classList.toggle('full', f.meter >= 100); }
   if (pilot) {
-    const list = pilot === robot ? [['plasma', 'cdPlasma', 7], ['rocket', 'cdRocket', 5], ['dash', 'cdDash', 2.5], ['missiles', 'cdMissiles', 6, 1], ['blade', 'cdBlade', 6, 1]] : [['acid', 'cdAcid', 6], ['spines', 'cdSpines', 7], ['charge', 'cdCharge', 4.5], ['roar', 'cdRoar', 9], ['beam', 'cdBeam', 6, 1], ['quake', 'cdQuake', 6, 1]];
+    const list = pilot === robot ? [['plasma', 'cdPlasma', 7], ['rocket', 'cdRocket', 5], ['dash', 'cdDash', 2.5], ['missiles', 'cdMissiles', 6, 1], ['blade', 'cdBlade', 6, 1]] : [['acid', 'cdAcid', 6], ['pounce', 'cdPounce', 7], ['charge', 'cdCharge', 4.5], ['roar', 'cdRoar', 9], ['beam', 'cdBeam', 6, 1], ['quake', 'cdQuake', 6, 1]];
     $('#cds').innerHTML = list.map(([k, key, max, sup]) => { const n = T(key); const c = pilot.cd[k] || 0, fr = sup ? Math.min(pilot.meter / 100, 1 - c / max) : 1 - c / max; return `<span class="cd${fr >= 1 ? ' ready' : ''}${sup ? ' sup' : ''}"><i style="width:${fr * 100}%"></i>${n}</span>`; }).join('');
   } else $('#cds').innerHTML = '';
   const t = Math.floor(fightT); $('#clock').textContent = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
