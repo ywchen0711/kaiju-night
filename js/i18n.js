@@ -3,10 +3,10 @@ const D = {
   zh: {
     pageTitle: '巨獸之夜 Kaiju Night',
     kicker: '緊急警報 · 港灣區全面撤離', title: '巨獸之夜', sub: 'KAIJU NIGHT',
-    lede: '凌晨三點，暴雨。一隻第四級巨獸從海溝爬上港口。<br>城裡最後一台守望者 MK-IV 機甲，正走向海邊。',
+    lede: '凌晨三點。一隻第四級巨獸爬上了岸。<br>城裡最後一台機甲，正走向牠。',
     mWatch: '<b>觀戰</b><span>電腦對戰，像新聞直播一樣切換鏡頭</span>',
-    mRobot: '<b>駕駛機甲</b><span>操控守望者 MK-IV，把巨獸打回海裡</span>',
-    mKaiju: '<b>化身巨獸</b><span>操控深淵獸，摧毀這座城市</span>',
+    mRobot: '<b>駕駛機甲</b><span>坐進駕駛艙，把巨獸打回去</span>',
+    mKaiju: '<b>化身巨獸</b><span>操控巨獸，摧毀這座城市</span>',
     mHuman: '<b>路人視角</b><span>你是街上的一個人，抬頭看著牠們開打——別被踩到</span>',
     home: '← 回到遊戲場', again: '再打一場', back: '回標題', nogl: '你的瀏覽器不支援 WebGL，無法顯示 3D 畫面。',
     robotName: '守望者 MK-IV', kaijuName: '深淵獸', quality: '畫質：', qLow: '流暢', qMid: '標準', qHigh: '電影', langBtn: 'EN',
@@ -20,18 +20,26 @@ const D = {
     padK: { KeyJ: '爪擊', KeyK: '撕咬', KeyL: '甩尾', KeyI: '衝撞', KeyU: '雙爪', KeyO: '頭槌', KeyH: '踏地', KeyG: '飛撲', KeyQ: '酸液', KeyR: '咆哮', KeyC: '後跳', KeyE: '熱線', KeyF: '踐踏' },
     cdRocket: 'G 火箭飛拳', cdPounce: 'G 飛撲', cdPlasma: 'Q 電漿砲', cdDash: 'Shift 衝刺', cdMissiles: 'E 飛彈齊射', cdBlade: 'F 天降斬', cdAcid: 'Q 酸液', cdCharge: 'I 衝撞', cdRoar: 'R 咆哮', cdBeam: 'E 原子熱線', cdQuake: 'F 震地踐踏',
     win: '勝利', lose: '戰敗', cityHeld: '城市守住了', cityFell: '城市陷落',
-    robotWonSub: '守望者 MK-IV 擊倒了深淵獸。雨還在下，火光照著廢墟。', kaijuWonSub: '深淵獸擊毀了守望者 MK-IV。牠的咆哮蓋過了警報聲。',
+    robotWonSub: (r, k) => `${r} 擊倒了${k}。火光照著廢墟。`, kaijuWonSub: (r, k) => `${k}擊毀了 ${r}。牠的咆哮蓋過了警報聲。`,
     stats: (clock, n) => `戰鬥時間 ${clock} · 倒塌建築 ${n} 棟`, survivedFor: (s) => `你撐了 ${s}`,
     survived: '你活下來了', dead_robot: '你被機甲踩扁了', dead_kaiju: '你被巨獸踩扁了', dead_beam: '你被熱線蒸發了', dead_blast: '你被爆炸吞沒了', dead_rubble: '你被大樓壓垮了',
     deadSub: '在這場戰鬥裡，沒有人看得見地上的你。',
+    sel_stage: '戰場', sel_robot: '機甲', sel_kaiju: '巨獸', random: '隨機',
+    st_harbour: '暴雨港灣', st_desert: '黃昏煉油廠', st_snow: '雪夜山城',
+    bulwarkName: '鐵壁 MK-II', strikerName: '疾風 MK-V', magmawName: '熔岩獸', voltraName: '雷霆獸',
+    beam_magmaw: '熔岩吐息', beam_voltra: '雷霆吐息',
+    d_random: '每一場都不一樣',
+    d_harbour: '深夜、暴雨、閃電，港口與高樓', d_desert: '夕陽、風沙，儲油槽與燃燒的火炬塔', d_snow: '飄雪的夜，結冰的湖，木屋與松樹',
+    d_sentinel: '均衡型：飛彈、電漿劍', d_bulwark: '重裝型：慢、厚、拳頭重', d_striker: '輕快型：快、脆、出手快',
+    d_abyssal: '深海巨獸：藍色熱線', d_magmaw: '熔岩巨獸：最壯最慢，岩甲與熔岩', d_voltra: '雷霆巨獸：最快最瘦，會放電的背刺',
   },
   en: {
     pageTitle: 'Kaiju Night',
     kicker: 'Emergency alert · Harbour district evacuation', title: 'KAIJU NIGHT', sub: '巨獸之夜',
-    lede: '3 a.m., a storm. A Category IV kaiju has crawled out of the trench into the harbour.<br>The city\'s last jaeger, Sentinel MK-IV, is walking down to the shore.',
+    lede: '3 a.m. A Category IV kaiju has come ashore.<br>The city’s last jaeger is walking out to meet it.',
     mWatch: '<b>Watch</b><span>AI vs AI, cut like a live news broadcast</span>',
-    mRobot: '<b>Pilot the jaeger</b><span>Drive Sentinel MK-IV and beat the kaiju back into the sea</span>',
-    mKaiju: '<b>Be the kaiju</b><span>Play the Abyssal and tear the city apart</span>',
+    mRobot: '<b>Pilot the jaeger</b><span>Climb into the cockpit and drive the kaiju back</span>',
+    mKaiju: '<b>Be the kaiju</b><span>Play the monster and tear the city apart</span>',
     mHuman: '<b>On foot</b><span>You are one person in the street, looking up as they fight. Don\'t get stepped on</span>',
     home: '← Back to the arcade', again: 'Fight again', back: 'Title', nogl: 'Your browser does not support WebGL, so the 3D scene cannot be shown.',
     robotName: 'SENTINEL MK-IV', kaijuName: 'ABYSSAL', quality: 'Quality: ', qLow: 'Smooth', qMid: 'Standard', qHigh: 'Cinema', langBtn: '中',
@@ -45,10 +53,18 @@ const D = {
     padK: { KeyJ: 'Claw', KeyK: 'Bite', KeyL: 'Tail', KeyI: 'Charge', KeyU: 'Rake', KeyO: 'Butt', KeyH: 'Stomp', KeyG: 'Pounce', KeyQ: 'Acid', KeyR: 'Roar', KeyC: 'Hop', KeyE: 'Beam', KeyF: 'Stomp' },
     cdRocket: 'G Rocket', cdPounce: 'G Pounce', cdPlasma: 'Q Plasma', cdDash: 'Shift Dash', cdMissiles: 'E Missiles', cdBlade: 'F Blade', cdAcid: 'Q Acid', cdCharge: 'I Charge', cdRoar: 'R Roar', cdBeam: 'E Breath', cdQuake: 'F Stomp',
     win: 'Victory', lose: 'Defeat', cityHeld: 'The city holds', cityFell: 'The city falls',
-    robotWonSub: 'Sentinel MK-IV brought the Abyssal down. The rain keeps falling on the burning ruins.', kaijuWonSub: 'The Abyssal tore Sentinel MK-IV apart. Its roar drowns out the sirens.',
+    robotWonSub: (r, k) => `${r} brought the ${k} down. Fires burn in the ruins.`, kaijuWonSub: (r, k) => `The ${k} tore ${r} apart. Its roar drowns out the sirens.`,
     stats: (clock, n) => `Fight time ${clock} · ${n} buildings down`, survivedFor: (s) => `You lasted ${s}`,
     survived: 'You survived', dead_robot: 'Crushed by the jaeger', dead_kaiju: 'Crushed by the kaiju', dead_beam: 'Vaporised by the beam', dead_blast: 'Caught in the blast', dead_rubble: 'Buried by a falling building',
     deadSub: 'In a fight like this, nobody sees you down on the street.',
+    sel_stage: 'Stage', sel_robot: 'Jaeger', sel_kaiju: 'Kaiju', random: 'Random',
+    st_harbour: 'Harbour storm', st_desert: 'Refinery at dusk', st_snow: 'Snowbound town',
+    bulwarkName: 'BULWARK MK-II', strikerName: 'STRIKER MK-V', magmawName: 'MAGMAW', voltraName: 'VOLTRA',
+    beam_magmaw: 'MAGMA BREATH', beam_voltra: 'THUNDER BREATH',
+    d_random: 'A different one every fight',
+    d_harbour: 'Night, rain and lightning; docks and towers', d_desert: 'Sunset and blowing sand; oil tanks and burning flare stacks', d_snow: 'Falling snow, a frozen lake, cabins and pines',
+    d_sentinel: 'Balanced: missiles and a plasma blade', d_bulwark: 'Heavy: slow, tough, hits hardest', d_striker: 'Light: fast, fragile, quick hands',
+    d_abyssal: 'Deep-sea beast with a blue heat beam', d_magmaw: 'Lava beast: biggest and slowest, rock armour', d_voltra: 'Storm beast: fastest and leanest, crackling spines',
   },
 };
 let lang = 'zh';
@@ -56,6 +72,7 @@ try { lang = localStorage.getItem('kaiju.lang') || (/^zh/i.test(navigator.langua
 const urlLang = typeof location !== 'undefined' && new URLSearchParams(location.search).get('lang'); if (D[urlLang]) lang = urlLang;
 export const T = (k) => D[lang][k] ?? D.zh[k] ?? k;
 export const getLang = () => lang;
+export const has = (k) => k in D[lang] || k in D.zh;
 export function applyDom() {
   if (typeof document === 'undefined' || !document.querySelectorAll) return;
   document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en'; document.title = T('pageTitle');

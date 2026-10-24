@@ -4,11 +4,12 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { buildWorld, SHORE } from './world.js?v=3';
-import { makeFx } from './fx.js?v=5';
-import { Fighter, think } from './fighters.js?v=6';
-import { Audio } from './audio.js?v=2';
-import { T, getLang, setLang, applyDom } from './i18n.js?v=3';
+import { buildWorld, SHORE, STAGE } from './world.js?v=4';
+import { ROBOTS, KAIJUS, STAGES, resolve } from './roster.js?v=1';
+import { makeFx } from './fx.js?v=6';
+import { Fighter, think } from './fighters.js?v=7';
+import { Audio } from './audio.js?v=3';
+import { T, has, getLang, setLang, applyDom } from './i18n.js?v=4';
 applyDom();
 
 const $ = (s) => document.querySelector(s);
@@ -38,8 +39,18 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.5, 5000);
 camera.position.set(0, 30, 260);
 
-const W = buildWorld(scene, renderer, q);
-const fx = makeFx(scene, q);
+// the stage and the fighters: what the title screen chose ('random' or an id), remembered between visits
+const sel = { stage: 'random', robot: 'random', kaiju: 'random' };
+try { Object.assign(sel, JSON.parse(localStorage.getItem('kaiju.sel') || '{}')); } catch {}
+let W = null;
+function setStage(id) {
+  if (W) { W.dispose(); fx && fx.clear(); }
+  W = buildWorld(scene, renderer, q, id);
+  W.onThunder = () => { Audio.thunder(rnd(1, 2.5)); shake = Math.max(shake, 0.15); };
+  Audio.weather && Audio.weather(W.precip);
+}
+setStage(resolve(sel.stage, STAGES));
+var fx = makeFx(scene, q);
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
@@ -109,7 +120,9 @@ const beamLight = new THREE.PointLight(0x5ad0ff, 0, 240, 2); scene.add(beamLight
 let beamOn = 0, scorchT = 0;
 function newFight() {
   for (const f of [robot, kaiju]) if (f) scene.remove(f.root);
-  robot = new Fighter('robot', scene); kaiju = new Fighter('kaiju', scene);
+  robot = new Fighter('robot', scene, ROBOTS[resolve(sel.robot, Object.keys(ROBOTS))]); kaiju = new Fighter('kaiju', scene, KAIJUS[resolve(sel.kaiju, Object.keys(KAIJUS))]);
+  // the kaiju's breath, beam and blood take its colour
+  const kv = kaiju.v; beamCore.material.color.setHex(kv.beam[0]); beamHalo.material.color.setHex(kv.beam[1]); beamLight.color.setHex(kv.beam[2]);
   // they start far apart, somewhere different every fight: often the kaiju wading in from the harbour, sometimes already in the streets
   const [rp, kp] = startSpots(); robot.pos.copy(rp); kaiju.pos.copy(kp);
   robot.yaw = Math.atan2(kp.x - rp.x, kp.z - rp.z); kaiju.yaw = Math.atan2(rp.x - kp.x, rp.z - kp.z);
@@ -138,7 +151,7 @@ function handleEvents(f, opp) {
   for (const e of f.events) {
     switch (e.type) {
       case 'attack':
-        if (e.super && mode !== 'title') { banner(T(e.name), f); director.super(f, e.name); }
+        if (e.super && mode !== 'title') { banner(T(has(e.name + '_' + f.v.id) ? e.name + '_' + f.v.id : e.name), f); director.super(f, e.name); }
         if (e.name === 'beam') { Audio.charge(); Audio.roar(1.4, 1.25); break; }
         if (e.name === 'quake') { Audio.roar(1.6, 0.9); break; }
         if (f.kind === 'robot') { Audio.servo(); if (e.name === 'plasma' || e.super) Audio.charge(); else Audio.whoosh(); }
@@ -149,13 +162,13 @@ function handleEvents(f, opp) {
         const blocked = e.dmg < 0, power = Math.min(2, Math.abs(e.dmg) / 50 + 0.4);
         const dir = opp.pos.clone().sub(f.pos).setY(0).normalize();
         if (opp.kind === 'robot') { fx.sparks(e.point, blocked ? 50 : 90); Audio.clang(power); if (!blocked && e.heavy) fx.explosion(e.point, 0.5); }
-        else { fx.blood(e.point, dir, blocked ? 10 : 34); fx.sparks(e.point, 20, [0.6, 0.85, 1]); Audio.thud(power); Audio.clang(power * 0.4); }
+        else { fx.blood(e.point, dir, blocked ? 10 : 34, opp.v.blood); fx.sparks(e.point, 20, opp.v.blood.map((c) => 0.4 + c * 0.6)); Audio.thud(power); Audio.clang(power * 0.4); }
         bigHit(e.point, blocked ? 0.4 : power);
         if (e.heavy && !blocked) { slowmo(0.25, 0.5); director.impact(e.point, opp); }
         if (pilot && opp === pilot) hurt = Math.min(1, hurt + 0.5);
         break; }
       case 'shoot': shots.push({ p: e.from.clone(), dir: e.dir, dmg: e.dmg, life: 2, from: f }); Audio.zap(); bigHit(e.from, 0.5); break;
-      case 'breath': fx.acid(e.from, e.dir); break;
+      case 'breath': fx.acid(e.from, e.dir, f.v.breath); break;
       case 'missile': {
         const side = V(rnd(-1, 1), 0, rnd(-1, 1)).multiplyScalar(18);
         shots.push({ missile: true, p: e.from.clone(), v: e.dir.clone().multiplyScalar(70).add(side), sp: 90, t: 0, life: 4, target: e.target, from: f, jit: V(rnd(-9, 9), rnd(-14, 12), rnd(-9, 9)) });
@@ -228,7 +241,7 @@ function updateMissile(s, i, dt) {
 // the special move's name across the screen
 let bannerT = 0;
 function banner(text, f) {
-  const b = $('#banner'); b.className = f.kind; $('#bnName').textContent = text; $('#bnWho').textContent = T(f.kind === 'robot' ? 'robotName' : 'kaijuName') + ' ' + T('superOf');
+  const b = $('#banner'); b.className = f.kind; b.style.setProperty('--kc', f.v.css || '#3ad8ff'); $('#bnName').textContent = text; $('#bnWho').textContent = T(f.v.name) + ' ' + T('superOf');
   b.hidden = false; b.style.animation = 'none'; void b.offsetWidth; b.style.animation = ''; clearTimeout(bannerT); bannerT = setTimeout(() => { b.hidden = true; }, 2600);
 }
 
@@ -323,7 +336,7 @@ function updateHuman(dt) {
     // walls: slide along the side of a building
     const b = inBuilding(human.pos, 0.6);
     if (b) { const ox = b.w / 2 + 0.6 - Math.abs(human.pos.x - b.x), oz = b.d / 2 + 0.6 - Math.abs(human.pos.z - b.z); if (ox < oz) human.pos.x += Math.sign(human.pos.x - b.x) * ox; else human.pos.z += Math.sign(human.pos.z - b.z) * oz; }
-    const was = Math.floor(human.bob / Math.PI); human.bob += dt * (run ? 15 : 9) * len; if (Math.floor(human.bob / Math.PI) !== was) Audio.step(run ? 0.05 : 0.03, 12, human.pos.z < SHORE);
+    const was = Math.floor(human.bob / Math.PI); human.bob += dt * (run ? 15 : 9) * len; if (Math.floor(human.bob / Math.PI) !== was) Audio.step(run ? 0.05 : 0.03, 12, STAGE.water && human.pos.z < SHORE);
   }
   human.pos.x = Math.max(-420, Math.min(420, human.pos.x)); human.pos.z = Math.max(SHORE + 2, Math.min(520, human.pos.z));
   // the giants do not see you: underfoot, under a falling body, under a falling building
@@ -408,9 +421,10 @@ function setupTouch() {
 setupTouch();
 
 // ------------------------------------------------------------------ screens and HUD
-function toTitle() { mode = 'title'; pilot = null; onFoot = false; if (document.pointerLockElement) document.exitPointerLock(); $('#title').hidden = false; $('#hud').hidden = true; $('#end').hidden = true; $('#pads').hidden = true; $('#help').hidden = true; newFight(); robot.pos.set(0, 0, 62); robot.yaw = Math.PI; kaiju.pos.set(-20, 0, -110); director.cut('title', 999); }
+function toTitle(rebuild = true) { mode = 'title'; pilot = null; onFoot = false; if (document.pointerLockElement) document.exitPointerLock(); $('#title').hidden = false; $('#hud').hidden = true; $('#end').hidden = true; $('#pads').hidden = true; $('#help').hidden = true; if (rebuild) setStage(resolve(sel.stage, STAGES)); newFight(); robot.pos.set(0, 0, 62); robot.yaw = Math.PI; kaiju.pos.set(-20, 0, -110); director.cut('title', 999); }
 function begin(m) {
-  Audio.start(); newFight(); onFoot = m === 'human'; mode = m === 'watch' ? 'watch' : onFoot ? 'human' : 'pilot'; pilot = m === 'robot' ? robot : m === 'kaiju' ? kaiju : null;
+  // every fight gets a fresh city (the title screen's preview may already be the chosen stage)
+  Audio.start(); setStage(resolve(sel.stage, STAGES)); newFight(); onFoot = m === 'human'; mode = m === 'watch' ? 'watch' : onFoot ? 'human' : 'pilot'; pilot = m === 'robot' ? robot : m === 'kaiju' ? kaiju : null;
   $('#title').hidden = true; $('#hud').hidden = false; $('#end').hidden = true;
   $('#pads').hidden = !((pilot || onFoot) && (matchMedia('(pointer: coarse)').matches || mobile));
   $('#feed').hidden = !!pilot;
@@ -420,6 +434,7 @@ function begin(m) {
 }
 // the texts that depend on the mode and the language
 function labelHud() {
+  $('#nmR').textContent = T(robot.v.name); $('#nmK').textContent = T(kaiju.v.name);
   $('#help').hidden = !(pilot || onFoot); $('#help').innerHTML = onFoot ? T('helpH') : pilot === robot ? T('helpR') : pilot === kaiju ? T('helpK') : '';
   const pads = onFoot ? {} : T(pilot === robot ? 'padR' : 'padK');
   document.querySelectorAll('#pads [data-k]').forEach((b) => { const k = b.dataset.k; b.textContent = pads[k] || ''; b.hidden = !b.textContent; });
@@ -435,7 +450,24 @@ const qSel = $('#quality');
 function fillQuality() { qSel.innerHTML = ''; for (const [k, p] of Object.entries(PRESETS)) { const o = document.createElement('option'); o.value = k; o.textContent = T('quality') + T(p.name); qSel.appendChild(o); } qSel.value = qKey; qSel.setAttribute('aria-label', T('quality')); }
 fillQuality();
 $('#lang').textContent = T('langBtn');
-$('#lang').onclick = () => { setLang(getLang() === 'zh' ? 'en' : 'zh'); $('#lang').textContent = T('langBtn'); fillQuality(); if (mode !== 'title') labelHud(); if (mode === 'end') showEnd(); };
+$('#lang').onclick = () => { setLang(getLang() === 'zh' ? 'en' : 'zh'); $('#lang').textContent = T('langBtn'); fillQuality(); fillPicks(); if (mode !== 'title') labelHud(); if (mode === 'end') showEnd(); };
+// the title screen's choices: stage, jaeger, kaiju, each with a 'random' option; changing one rebuilds the preview behind
+const PICKS = { stage: ['random', ...STAGES], robot: ['random', ...Object.keys(ROBOTS)], kaiju: ['random', ...Object.keys(KAIJUS)] };
+const pickName = (k, id) => id === 'random' ? T('random') : T(k === 'stage' ? 'st_' + id : k === 'robot' ? ROBOTS[id].name : KAIJUS[id].name);
+function fillPicks() {
+  for (const k of Object.keys(PICKS)) { const el = $(`#pick-${k}`); if (!el) continue; el.querySelector('.lb').textContent = T('sel_' + k); el.querySelector('.v').textContent = pickName(k, sel[k]); el.querySelector('.d').textContent = T('d_' + sel[k]); }
+}
+for (const k of Object.keys(PICKS)) {
+  const el = $(`#pick-${k}`); if (!el) continue;
+  const step = (d) => {
+    const L = PICKS[k]; sel[k] = L[(L.indexOf(sel[k]) + d + L.length) % L.length]; try { localStorage.setItem('kaiju.sel', JSON.stringify(sel)); } catch {}
+    fillPicks();
+    // show the choice behind the title: a new stage, or the new fighter in the current one
+    if (sel[k] !== 'random' || k !== 'stage') { if (k === 'stage') setStage(sel.stage); toTitle(false); }
+  };
+  el.querySelector('.prev').onclick = () => step(-1); el.querySelector('.next').onclick = () => step(1);
+}
+fillPicks();
 qSel.onchange = () => { try { localStorage.setItem('kaiju.q', qSel.value); } catch {} location.search = ''; location.reload(); };
 
 function hud() {
@@ -454,11 +486,11 @@ function showEnd() {
   if (document.pointerLockElement) document.exitPointerLock();
   if (onFoot) {
     $('#endTitle').textContent = human.alive ? T('survived') : T('dead_' + human.cause);
-    $('#endSub').textContent = human.alive ? T(robotWon ? 'robotWonSub' : 'kaijuWonSub') : T('deadSub');
+    $('#endSub').textContent = human.alive ? T(robotWon ? 'robotWonSub' : 'kaijuWonSub')(T(robot.v.name), T(kaiju.v.name)) : T('deadSub');
     const s = Math.floor(human.t); $('#endStats').textContent = T('survivedFor')(`${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`) + ' · ' + T('stats')($('#clock').textContent, fallen);
   } else {
     $('#endTitle').textContent = pilot ? T(youWon ? 'win' : 'lose') : T(robotWon ? 'cityHeld' : 'cityFell');
-    $('#endSub').textContent = T(robotWon ? 'robotWonSub' : 'kaijuWonSub');
+    $('#endSub').textContent = T(robotWon ? 'robotWonSub' : 'kaijuWonSub')(T(robot.v.name), T(kaiju.v.name));
     $('#endStats').textContent = T('stats')($('#clock').textContent, fallen);
   }
   $('#end').hidden = false; $('#pads').hidden = true;
@@ -507,9 +539,8 @@ function frame() {
   if (mode !== 'title') hud();
   composer.render(rdt);
 }
-W.onThunder = () => { Audio.thunder(rnd(1, 2.5)); shake = Math.max(shake, 0.15); };
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); grade.uniforms.uAspect.value = innerWidth / innerHeight; });
-toTitle();
+toTitle(false);
 frame();
 // fast-forward an AI fight without drawing (for balance checks)
 function sim(seconds, dt = 1 / 30) {
@@ -520,4 +551,4 @@ function sim(seconds, dt = 1 / 30) {
   }
   return { t: Math.round(t2), robot: Math.round(robot.hp), kaiju: Math.round(kaiju.hp), fallen: W.buildings.filter((b) => !b.alive && !b.pole).length };
 }
-window.KN = { sim, get robot() { return robot; }, get kaiju() { return kaiju; }, human, get mode() { return mode; }, begin, director, W, fx, renderer, toTitle, setSlow: slowmo };
+window.KN = { sim, get robot() { return robot; }, get kaiju() { return kaiju; }, human, get mode() { return mode; }, begin, director, get W() { return W; }, fx, sel, setStage, newFight, renderer, toTitle, setSlow: slowmo };

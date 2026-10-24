@@ -73,13 +73,13 @@ export function makeFx(scene, q) {
       glow.add({ x: p.x, y: p.y, z: p.z, vx: 0, vy: 0, vz: 0, life: 0.18, size: 30, grow: 1, color: [1, 0.8, 0.5], alpha: 0.9 });
     },
     // kaiju blood glows blue, and steams
-    blood(p, dir, n = 30) {
-      for (let i = 0; i < n; i++) { const v = dir.clone().multiplyScalar(rnd(10, 30)).add(new THREE.Vector3(rnd(-12, 12), rnd(-4, 14), rnd(-12, 12))); glow.add({ x: p.x, y: p.y, z: p.z, vx: v.x, vy: v.y, vz: v.z, life: rnd(1, 2.4), size: rnd(1.5, 3.5), color: [0.15, 0.8, 1], alpha: 0.9, grav: 22, drag: 0.4, floor: true }); }
+    blood(p, dir, n = 30, col = [0.15, 0.8, 1]) {
+      for (let i = 0; i < n; i++) { const v = dir.clone().multiplyScalar(rnd(10, 30)).add(new THREE.Vector3(rnd(-12, 12), rnd(-4, 14), rnd(-12, 12))); glow.add({ x: p.x, y: p.y, z: p.z, vx: v.x, vy: v.y, vz: v.z, life: rnd(1, 2.4), size: rnd(1.5, 3.5), color: col, alpha: 0.9, grav: 22, drag: 0.4, floor: true }); }
       for (let i = 0; i < 6; i++) smoke.add({ x: p.x, y: p.y, z: p.z, vx: rnd(-3, 3), vy: rnd(2, 6), vz: rnd(-3, 3), life: rnd(1.5, 3), size: rnd(5, 9), grow: 2, color: [0.25, 0.35, 0.38], alpha: 0.35, drag: 0.8 });
     },
     // acid breath: a stream of glowing droplets and vapour
-    acid(p, dir) {
-      for (let i = 0; i < 6; i++) { const v = dir.clone().multiplyScalar(rnd(60, 90)).add(new THREE.Vector3(rnd(-6, 6), rnd(-6, 6), rnd(-6, 6))); glow.add({ x: p.x, y: p.y, z: p.z, vx: v.x, vy: v.y, vz: v.z, life: rnd(0.6, 1.1), size: rnd(4, 9), grow: 2.5, color: [0.2, 0.9, 1], alpha: 0.5, grav: 8, drag: 0.8 }); }
+    acid(p, dir, col = [0.2, 0.9, 1]) {
+      for (let i = 0; i < 6; i++) { const v = dir.clone().multiplyScalar(rnd(60, 90)).add(new THREE.Vector3(rnd(-6, 6), rnd(-6, 6), rnd(-6, 6))); glow.add({ x: p.x, y: p.y, z: p.z, vx: v.x, vy: v.y, vz: v.z, life: rnd(0.6, 1.1), size: rnd(4, 9), grow: 2.5, color: col, alpha: 0.5, grav: 8, drag: 0.8 }); }
       smoke.add({ x: p.x, y: p.y, z: p.z, vx: dir.x * 40, vy: dir.y * 40 + 3, vz: dir.z * 40, life: 2, size: 10, grow: 3, color: [0.18, 0.3, 0.32], alpha: 0.3, drag: 1 });
     },
     // the plasma cannon
@@ -118,6 +118,8 @@ export function makeFx(scene, q) {
       for (let i = 0; i < 26; i++) smoke.add({ x: b.x + rnd(-b.w / 2, b.w / 2), y: rnd(2, b.h * 0.6), z: b.z + rnd(-b.d / 2, b.d / 2), vx: rnd(-14, 14), vy: rnd(-2, 6), vz: rnd(-14, 14), life: rnd(6, 11), size: rnd(18, 34), grow: 2.2, color: [0.24, 0.22, 0.21], alpha: 0.6, drag: 0.7, fadeIn: 0.1, spin: rnd(-0.2, 0.2) });
       if (Math.random() < 0.7) F.fire(b.x + rnd(-b.w / 3, b.w / 3), b.z + rnd(-b.d / 3, b.d / 3), b.h * 0.1, rnd(25, 60));
     },
+    // a new stage: nothing left burning or flying from the last one
+    clear() { for (const pl of [smoke, glow, sparks]) pl.p.length = 0; fires.length = 0; chunks.length = 0; for (const R of rings) R.t = R.life; },
     update(dt, t) {
       // burning fires throw flame and smoke; the nearest few get a flickering light
       for (let i = fires.length - 1; i >= 0; i--) {

@@ -7,7 +7,7 @@
 <meta name="description" content="雨夜的港口城市，一隻巨獸從海裡爬上岸，巨型機甲擋在牠面前。">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Noto+Serif+TC:wght@700;900&family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=5">
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
 </script>
@@ -21,6 +21,11 @@
     <h1 data-i18n="title">巨獸之夜</h1>
     <p class="en" data-i18n="sub">KAIJU NIGHT</p>
     <p class="lede" data-i18n="lede">凌晨三點，暴雨。一隻第四級巨獸從海溝爬上港口。<br>城裡最後一台守望者 MK-IV 機甲，正走向海邊。</p>
+    <div class="picks">
+      <div class="pick" id="pick-stage"><span class="lb"></span><button class="prev" aria-label="previous">‹</button><b class="v"></b><button class="next" aria-label="next">›</button><small class="d"></small></div>
+      <div class="pick" id="pick-robot"><span class="lb"></span><button class="prev" aria-label="previous">‹</button><b class="v"></b><button class="next" aria-label="next">›</button><small class="d"></small></div>
+      <div class="pick" id="pick-kaiju"><span class="lb"></span><button class="prev" aria-label="previous">‹</button><b class="v"></b><button class="next" aria-label="next">›</button><small class="d"></small></div>
+    </div>
     <div class="modes">
       <button data-mode="watch" data-i18n="mWatch"><b>觀戰</b><span>電腦對戰，像新聞直播一樣切換鏡頭</span></button>
       <button data-mode="robot" data-i18n="mRobot"><b>駕駛機甲</b><span>操控守望者 MK-IV，把巨獸打回海裡</span></button>
@@ -33,9 +38,9 @@
 
 <section id="hud" hidden>
   <div class="bars">
-    <div class="side r"><div class="nm"><span data-i18n="robotName">守望者 MK-IV</span> <small>JAEGER</small></div><div class="bar"><i id="hpR"></i></div><div class="mt"><i id="mtR"></i></div><div class="num" id="hpRt"></div></div>
+    <div class="side r"><div class="nm"><span id="nmR">守望者 MK-IV</span> <small>JAEGER</small></div><div class="bar"><i id="hpR"></i></div><div class="mt"><i id="mtR"></i></div><div class="num" id="hpRt"></div></div>
     <div id="clock">00:00</div>
-    <div class="side k"><div class="nm"><small>CATEGORY IV</small> <span data-i18n="kaijuName">深淵獸</span></div><div class="bar"><i id="hpK"></i></div><div class="mt"><i id="mtK"></i></div><div class="num" id="hpKt"></div></div>
+    <div class="side k"><div class="nm"><small>CATEGORY IV</small> <span id="nmK">深淵獸</span></div><div class="bar"><i id="hpK"></i></div><div class="mt"><i id="mtK"></i></div><div class="num" id="hpKt"></div></div>
   </div>
   <div id="feed"></div>
   <div id="banner" hidden><small id="bnWho"></small><b id="bnName"></b></div>
@@ -63,6 +68,6 @@
 <button id="lang" aria-label="Language / 語言">EN</button>
 <button id="mute" aria-label="Sound / 聲音">🔊</button>
 <div id="nogl" hidden data-i18n="nogl">你的瀏覽器不支援 WebGL，無法顯示 3D 畫面。</div>
-<script type="module" src="js/main.js?v=6"></script>
+<script type="module" src="js/main.js?v=7"></script>
 </body>
 </html>

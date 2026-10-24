@@ -15,6 +15,14 @@ A giant robot and a kaiju fight in a harbour city at night, in the rain: **https
   fold-out arm blade, and pauldrons and thigh plates that follow the limbs. Detail: belly scutes, bony spikes on the
   tail, thighs and forearms, horns, gill slits and old wounds that glow brighter as the kaiju gets hurt; antennas, hoses,
   vents and back thrusters on the jaeger.
+- **Stages, jaegers and kaiju** (chosen on the title screen, or random; every fight gets a fresh city):
+  - Stages: 暴雨港灣 Harbour storm (night, rain, lightning, the bay), 黃昏煉油廠 Refinery at dusk (low sun, blowing sand,
+    storage tanks, warehouses, burning flare stacks), 雪夜山城 Snowbound town (falling snow, a frozen lake, cabins, a church, pines).
+  - Jaegers: Sentinel MK-IV (balanced), Bulwark MK-II (heavy: wide pauldrons, huge fists, forearm shields; slow and tough),
+    Striker MK-V (light: back fins, a forearm blade; fast and fragile).
+  - Kaiju: Abyssal (deep-sea, blue heat beam), Magmaw (lava veins glowing through cracked hide, rock armour, a snout horn,
+    magma breath; biggest and slowest), Voltra (lean, tall crackling plates, a crest of blades, thunder breath; fastest).
+  - Each variant has its own health, speed, move tempo and damage, tuned with headless AI-vs-AI runs of every pairing.
 - **The fight**: punches, uppercut, kick, elbow, two-fisted hammer, a jab-cross-uppercut combo, a jet-assisted rocket
   punch, block, dash and plasma cannon against claw, two-handed rake, bite, headbutt, stomp, tail sweep, a running charge, acid
   breath, a low claws-first pounce, and roar. The kaiju fights with its body only, no projectiles besides its breath. Every fight starts from random positions. Buildings in the way collapse into dust and fire. The AI fights in phases (close in, trade blows,
@@ -31,6 +39,7 @@ A giant robot and a kaiju fight in a harbour city at night, in the rain: **https
 - Controls: keyboard, touch (stick and buttons) or gamepad. Three quality presets.
 
 ```
+js/roster.js    the jaegers, kaiju and stages: build, colours, stats
 js/i18n.js      Chinese and English texts
 js/world.js     the city, sky, rain, water, lights, helicopters, building collapse
 js/fx.js        particles (smoke, glow, sparks), debris, fires

@@ -1,5 +1,5 @@
 // All sound is synthesized with WebAudio: rain, thunder, the kaiju's roar, metal hits, footfalls, explosions, servos, a dark drone.
-let ctx = null, master = null, verb = null, noiseBuf = null, rainGain = null, droneGain = null;
+let ctx = null, master = null, verb = null, noiseBuf = null, rainGain = null, droneGain = null, rainBands = [], weatherKind = 'rain';
 const rnd = (a, b) => a + Math.random() * (b - a);
 
 function makeNoise() { const len = ctx.sampleRate * 2, b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0); let last = 0; for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; last = (last + 0.02 * w) / 1.02; d[i] = w * 0.6 + last * 3; } return b; }
@@ -19,13 +19,25 @@ export const Audio = {
     verb = makeVerb(); const vg = ctx.createGain(); vg.gain.value = 0.6; verb.connect(vg); vg.connect(comp);
     // rain: two bands of noise, steady
     rainGain = ctx.createGain(); rainGain.gain.value = 0.22; rainGain.connect(master);
-    for (const [f, t, g] of [[3800, 'highpass', 0.5], [900, 'bandpass', 0.6]]) { const s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true; const fl = ctx.createBiquadFilter(); fl.type = t; fl.frequency.value = f; const gg = ctx.createGain(); gg.gain.value = g; s.connect(fl); fl.connect(gg); gg.connect(rainGain); s.start(); }
+    for (const [f, t, g] of [[3800, 'highpass', 0.5], [900, 'bandpass', 0.6]]) { const s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true; const fl = ctx.createBiquadFilter(); fl.type = t; fl.frequency.value = f; const gg = ctx.createGain(); gg.gain.value = g; s.connect(fl); fl.connect(gg); gg.connect(rainGain); s.start(); rainBands.push({ fl, gg }); }
+    // wind (desert and snow): the same noise, low and gusting
+    const wl = ctx.createOscillator(), wg = ctx.createGain(); wl.frequency.value = 0.13; wg.gain.value = 0.25; wl.connect(wg); wl.start(); this.gust = wg;
+    this.weather(weatherKind);
     // drone: low detuned saws through a slow filter, with a heartbeat-like swell
     droneGain = ctx.createGain(); droneGain.gain.value = 0.05; const df = ctx.createBiquadFilter(); df.type = 'lowpass'; df.frequency.value = 220; df.Q.value = 3;
     const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 0.07; lg.gain.value = 120; lfo.connect(lg); lg.connect(df.frequency); lfo.start();
     for (const f of [36.7, 36.9, 55, 43.6]) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.connect(df); o.start(); }
     df.connect(droneGain); out(droneGain, 0.6, 1);
     this.on = true;
+  },
+  // the steady ambience: 'rain' hisses; 'dust' and 'snow' are wind, a low moan that gusts
+  weather(kind) {
+    weatherKind = kind; if (!ctx || rainBands.length < 2) return;
+    const [hi, lo] = rainBands, wind = kind !== 'rain', t = now();
+    hi.gg.gain.setTargetAtTime(wind ? 0.04 : 0.5, t, 0.5); lo.gg.gain.setTargetAtTime(wind ? 0.9 : 0.6, t, 0.5);
+    lo.fl.frequency.setTargetAtTime(wind ? (kind === 'dust' ? 520 : 380) : 900, t, 0.5); lo.fl.Q.setTargetAtTime(wind ? 2.5 : 1, t, 0.5);
+    try { this.gust.disconnect(); } catch {} if (wind) this.gust.connect(rainGain.gain);
+    rainGain.gain.setTargetAtTime(wind ? 0.3 : 0.22, t, 0.5);
   },
   setMuted(m) { if (master) master.gain.setTargetAtTime(m ? 0 : 0.8, now(), 0.1); },
   thunder(dist = 1) {

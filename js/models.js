@@ -3,6 +3,7 @@
 // Every texture is painted procedurally on canvases (colour, normal, roughness, metalness).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { KAIJUS, ROBOTS } from './roster.js?v=1';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -42,8 +43,8 @@ let KSKIN = null;
 function kaijuSkin() {
   if (KSKIN) return KSKIN;
   const N = 512, A = voronoi(N, 9), B = voronoi(N, 30);
-  const hc = cnv(N), cc = cnv(N), rc = cnv(N), hg = hc.getContext('2d'), cg = cc.getContext('2d'), rg = rc.getContext('2d');
-  const hi = hg.createImageData(N, N), ci = cg.createImageData(N, N), ri = rg.createImageData(N, N);
+  const hc = cnv(N), cc = cnv(N), rc = cnv(N), vc = cnv(N), hg = hc.getContext('2d'), cg = cc.getContext('2d'), rg = rc.getContext('2d'), vg = vc.getContext('2d');
+  const hi = hg.createImageData(N, N), ci = cg.createImageData(N, N), ri = rg.createImageData(N, N), vi = vg.createImageData(N, N);
   for (let i = 0; i < N * N; i++) {
     const e1 = sstep((A.F2[i] - A.F1[i]) / 0.16), d1 = 1 - Math.min(1, A.F1[i] / 0.8), e2 = sstep((B.F2[i] - B.F1[i]) / 0.22), d2 = 1 - Math.min(1, B.F1[i] / 0.75);
     const grain = Math.random();
@@ -55,32 +56,34 @@ function kaijuSkin() {
     hi.data[o] = hi.data[o + 1] = hi.data[o + 2] = h * 255; hi.data[o + 3] = 255;
     ci.data[o] = r; ci.data[o + 1] = g; ci.data[o + 2] = b; ci.data[o + 3] = 255;
     ri.data[o] = ri.data[o + 1] = ri.data[o + 2] = (0.9 - 0.42 * crack * (0.5 + 0.5 * d2)) * 255; ri.data[o + 3] = 255;
+    vi.data[o] = vi.data[o + 1] = vi.data[o + 2] = Math.min(255, (Math.pow(1 - e1, 3) * (0.6 + 0.4 * A.id[i]) + 0.3 * Math.pow(1 - e2, 4)) * 255); vi.data[o + 3] = 255;
   }
-  hg.putImageData(hi, 0, 0); cg.putImageData(ci, 0, 0); rg.putImageData(ri, 0, 0);
-  KSKIN = { map: tex(cc, true), normal: tex(normalFromHeight(hc, 4.5), false), rough: tex(rc, false) };
+  hg.putImageData(hi, 0, 0); cg.putImageData(ci, 0, 0); rg.putImageData(ri, 0, 0); vg.putImageData(vi, 0, 0);
+  KSKIN = { map: tex(cc, true), normal: tex(normalFromHeight(hc, 4.5), false), rough: tex(rc, false), veins: tex(vc, true) };
   return KSKIN;
 }
-function kaijuMats() {
+function kaijuMats(v) {
   const S = kaijuSkin();
   const glowC = cnv(128, 256), g = glowC.getContext('2d');
   // dorsal plate glow: dark at the root, burning blue toward the jagged tips, with cracks of light
-  const grd = g.createLinearGradient(0, 256, 0, 0); grd.addColorStop(0, '#000'); grd.addColorStop(0.55, '#020608'); grd.addColorStop(0.88, '#2a7090'); grd.addColorStop(1, '#a8e8ff');
+  const grd = g.createLinearGradient(0, 256, 0, 0); grd.addColorStop(0, '#000'); grd.addColorStop(0.55, '#060606'); grd.addColorStop(0.88, '#707070'); grd.addColorStop(1, '#f0f0f0');
   g.fillStyle = grd; g.fillRect(0, 0, 128, 256);
-  g.strokeStyle = 'rgba(140,230,255,.7)'; for (let i = 0; i < 18; i++) { g.lineWidth = rnd(0.5, 2); g.beginPath(); let x = rnd(10, 118), y = rnd(30, 200); g.moveTo(x, y); for (let k = 0; k < 5; k++) { x += rnd(-12, 12); y -= rnd(8, 20); g.lineTo(x, y); } g.stroke(); }
+  g.strokeStyle = 'rgba(230,230,230,.7)'; for (let i = 0; i < 18; i++) { g.lineWidth = rnd(0.5, 2); g.beginPath(); let x = rnd(10, 118), y = rnd(30, 200); g.moveTo(x, y); for (let k = 0; k < 5; k++) { x += rnd(-12, 12); y -= rnd(8, 20); g.lineTo(x, y); } g.stroke(); }
   const glowMap = tex(glowC, true);
-  const skin = new THREE.MeshPhysicalMaterial({ map: S.map, normalMap: S.normal, normalScale: new THREE.Vector2(2.4, 2.4), roughnessMap: S.rough, roughness: 1, metalness: 0, clearcoat: 0.28, clearcoatRoughness: 0.45, envMapIntensity: 0.8, color: 0xffffff });
-  const plate = () => new THREE.MeshPhysicalMaterial({ color: 0x2b2a28, normalMap: S.normal, normalScale: new THREE.Vector2(1.2, 1.2), roughness: 0.42, metalness: 0.05, clearcoat: 0.6, clearcoatRoughness: 0.3, emissive: 0x4ad8ff, emissiveMap: glowMap, emissiveIntensity: 1.4 });
+  const skin = new THREE.MeshPhysicalMaterial({ map: S.map, normalMap: S.normal, normalScale: new THREE.Vector2(2.4, 2.4), roughnessMap: S.rough, roughness: 1, metalness: 0, clearcoat: 0.28, clearcoatRoughness: 0.45, envMapIntensity: 0.8, color: v.skin,
+    emissive: v.veins || 0x000000, emissiveMap: v.veins ? S.veins : null, emissiveIntensity: v.veins ? 1 : 0 });
+  const plate = () => new THREE.MeshPhysicalMaterial({ color: 0x2b2a28, normalMap: S.normal, normalScale: new THREE.Vector2(1.2, 1.2), roughness: 0.42, metalness: 0.05, clearcoat: 0.6, clearcoatRoughness: 0.3, emissive: v.glow, emissiveMap: glowMap, emissiveIntensity: 1.4 });
   return {
     skin, plate,
     tooth: new THREE.MeshStandardMaterial({ color: 0xb8ae96, roughness: 0.35 }),
     claw: new THREE.MeshStandardMaterial({ color: 0x141210, roughness: 0.35, metalness: 0.1 }),
-    mouth: new THREE.MeshStandardMaterial({ color: 0x2a0a0e, emissive: 0x3ad8ff, emissiveIntensity: 0, roughness: 0.5 }),
-    eye: new THREE.MeshStandardMaterial({ color: 0x1a0800, emissive: 0xffa040, emissiveIntensity: 1.6, roughness: 0.2 }),
+    mouth: new THREE.MeshStandardMaterial({ color: 0x2a0a0e, emissive: v.mouth, emissiveIntensity: 0, roughness: 0.5 }),
+    eye: new THREE.MeshStandardMaterial({ color: 0x1a0800, emissive: v.eye, emissiveIntensity: 1.6, roughness: 0.2 }),
     dark: new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.8 }),
     // the belly: paler, smoother scutes
-    belly: new THREE.MeshPhysicalMaterial({ map: S.map, normalMap: S.normal, normalScale: new THREE.Vector2(1.1, 1.1), roughnessMap: S.rough, roughness: 0.9, color: 0x8a8476, clearcoat: 0.4, clearcoatRoughness: 0.45 }),
+    belly: new THREE.MeshPhysicalMaterial({ map: S.map, normalMap: S.normal, normalScale: new THREE.Vector2(1.1, 1.1), roughnessMap: S.rough, roughness: 0.9, color: v.belly, clearcoat: 0.4, clearcoatRoughness: 0.45 }),
     // old wounds and gill slits that glow with the same light as the plates (brighter as it gets hurt)
-    scar: new THREE.MeshStandardMaterial({ color: 0x06141a, emissive: 0x3ad8ff, emissiveIntensity: 0.4, roughness: 0.5 }),
+    scar: new THREE.MeshStandardMaterial({ color: 0x06141a, emissive: v.glow, emissiveIntensity: 0.4, roughness: 0.5 }),
     flesh: new THREE.MeshStandardMaterial({ color: 0x4a1418, roughness: 0.4 }),
   };
 }
@@ -169,15 +172,15 @@ function plateGeo() {
 }
 
 // ------------------------------------------------------------------ the kaiju
-export function buildKaiju() {
-  const M = kaijuMats(), j = {}, bones = [], root = new THREE.Group(), tmpRig = new THREE.Group(); root.add(tmpRig);
+export function buildKaiju(v = KAIJUS.abyssal) {
+  const M = kaijuMats(v), j = {}, bones = [], root = new THREE.Group(), tmpRig = new THREE.Group(); root.add(tmpRig);
   const B = (parent, name, x, y, z) => { const b = new THREE.Bone(); b.name = name; b.position.set(x, y, z); (parent || tmpRig).add(b); j[name] = b; bones.push(b); return b; };
   // skeleton: an upright, forward-leaning body over massive legs, a long heavy tail as counterweight
   const pelvis = B(null, 'pelvis', 0, 40, -6), spine = B(pelvis, 'spine', 0, 9, 5), chest = B(spine, 'chest', 0, 11, 6), neck0 = B(chest, 'neck0', 0, 4.5, 3), neck = B(neck0, 'neck', 0, 4.5, 3), head = B(neck, 'head', 0, 7, 7);
   B(head, 'jaw', 0, -3, 1);
   j.tail = []; let tp = pelvis;
   const TO = [[-2, -11], [-4.5, -9], [-4.5, -9], [-4.5, -9], [-4.5, -9], [-4.5, -9], [-4, -9], [-3, -8.5], [-2, -8], [-1.5, -8], [-1, -7.5], [-0.5, -7]];
-  TO.forEach(([dy, dz], i) => { tp = B(tp, 'tail' + i, 0, dy, dz); j.tail.push(tp); });
+  TO.forEach(([dy, dz], i) => { tp = B(tp, 'tail' + i, 0, dy, dz * v.tail); j.tail.push(tp); });
   for (const [s, S] of [[-1, 'L'], [1, 'R']]) {
     // toes bend at the ball of the foot; the claws of each hand curl and spread on their own joint
     const hip = B(pelvis, 'hip' + S, s * 11, -4, 1), knee = B(hip, 'knee' + S, 0, -18, 7), an = B(knee, 'ankle' + S, 0, -15, -6); B(an, 'toe' + S, 0, -2, 5.5);
@@ -186,11 +189,13 @@ export function buildKaiju() {
   root.updateMatrixWorld(true);
   const W = (name) => j[name].getWorldPosition(V()), bi = Object.fromEntries(bones.map((b, i) => [b.name, i]));
   // the body: from the tip of the tail, through the torso and neck, to the snout
-  const tailR = [12.5, 11, 9.6, 8.3, 7.1, 6.0, 5.0, 4.1, 3.3, 2.6, 2.0, 1.5];
+  const tailR = [12.5, 11, 9.6, 8.3, 7.1, 6.0, 5.0, 4.1, 3.3, 2.6, 2.0, 1.5].map((r) => r * v.bulk);
+  // limbs thicken a little less than the body does
+  const lb = 1 + (v.bulk - 1) * 0.8, LB = (a) => a.map((n) => ({ ...n, rx: n.rx * lb, ry: n.ry * lb }));
   const nodes = [{ p: W('tail11').add(V(0, -0.3, -6)), rx: 0.5, ry: 0.5, bone: 'tail11', ridge: 0.1 }];
   for (let i = 11; i >= 0; i--) nodes.push({ p: W('tail' + i), rx: tailR[i], ry: tailR[i] * 1.12, bone: i > 0 ? 'tail' + (i - 1) : 'pelvis', ridge: 0.12, belly: 0.85 });
   const hd = (x, y, z) => W('head').add(V(x, y, z));
-  nodes.push(
+  nodes.push(...[
     { p: W('pelvis'), rx: 15.5, ry: 15.5, bone: 'pelvis', ridge: 0.06, belly: 0.86 },
     { p: W('spine'), rx: 16.5, ry: 15.5, bone: 'spine', ridge: 0.05, belly: 0.88 },
     { p: W('chest'), rx: 14.5, ry: 13, bone: 'chest', ridge: 0.05, belly: 0.9 },
@@ -200,13 +205,13 @@ export function buildKaiju() {
     { p: hd(0, -1.4, 7.5), rx: 4.7, ry: 3.9, bone: 'head', ridge: 0.08, belly: 0.72 },
     { p: hd(0, -2.3, 13.8), rx: 2.5, ry: 2.2, bone: 'head', belly: 0.7 },
     { p: hd(0, -2.6, 15.4), rx: 0.4, ry: 0.4, bone: 'head' },
-  );
+  ].map((n) => (n.bone === 'head' ? n : { ...n, rx: n.rx * v.bulk, ry: n.ry * v.bulk })));
   const body = loft(nodes, { bones: bi, seg: 36, step: 2.2, uRep: 4, tile: 26, noise: 0.06 });
   const geos = [body.geo];
   // legs: huge thighs, digitigrade-ish shins, broad clawed feet
   for (const [s, S] of [[-1, 'L'], [1, 'R']]) {
     const hip = W('hip' + S), knee = W('knee' + S), an = W('ankle' + S);
-    geos.push(loft([
+    geos.push(loft(LB([
       { p: hip.clone().add(V(-s * 1.5, 7, -1)), rx: 10, ry: 10.5, bone: 'pelvis' },
       { p: hip, rx: 10.5, ry: 11.5, bone: 'hip' + S },
       { p: hip.clone().lerp(knee, 0.5), rx: 9, ry: 9.8, bone: 'hip' + S },
@@ -217,9 +222,9 @@ export function buildKaiju() {
       { p: an.clone().add(V(0, -2, 6.2)), rx: 5.1, ry: 2.4, bone: 'toe' + S },
       { p: an.clone().add(V(0, -2.2, 8.5)), rx: 4.7, ry: 1.9, bone: 'toe' + S },
       { p: an.clone().add(V(0, -2.3, 10)), rx: 1, ry: 0.8, bone: 'toe' + S },
-    ], { bones: bi, seg: 26, up: V(0, 0, 1), uRep: 3, tile: 22, belly: 1, noise: 0.06 }).geo);
+    ]), { bones: bi, seg: 26, up: V(0, 0, 1), uRep: 3, tile: 22, belly: 1, noise: 0.06 }).geo);
     const sh = W('sh' + S), el = W('el' + S), hand = W('hand' + S);
-    geos.push(loft([
+    geos.push(loft(LB([
       { p: sh.clone().add(V(-s * 4, 1.5, -3)), rx: 5.2, ry: 5.2, bone: 'chest' },
       { p: sh, rx: 4.6, ry: 4.8, bone: 'sh' + S },
       { p: sh.clone().lerp(el, 0.5), rx: 4.1, ry: 4.3, bone: 'sh' + S },
@@ -230,7 +235,7 @@ export function buildKaiju() {
       { p: hand.clone().add(V(0, -1.0, 2.0)), rx: 3.0, ry: 1.75, bone: 'hand' + S },
       { p: hand.clone().add(V(0, -1.7, 3.6)), rx: 2.9, ry: 1.4, bone: 'fing' + S },
       { p: hand.clone().add(V(0, -2.0, 4.3)), rx: 1.4, ry: 0.8, bone: 'fing' + S },
-    ], { bones: bi, seg: 20, up: V(0, 0, 1), uRep: 2, tile: 16, belly: 1, noise: 0.05 }).geo);
+    ]), { bones: bi, seg: 20, up: V(0, 0, 1), uRep: 2, tile: 16, belly: 1, noise: 0.05 }).geo);
   }
   const mesh = new THREE.SkinnedMesh(mergeGeometries(geos), M.skin);
   mesh.castShadow = mesh.receiveShadow = true; mesh.frustumCulled = false;
@@ -251,7 +256,7 @@ export function buildKaiju() {
     p.addScaledVector(Y, -h * 0.16);
     const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, Y, Z));
     const band = Math.min(7, Math.max(0, Math.floor(x * 8)));
-    const m = att(r.bone, pgeos[Math.floor(Math.random() * 4)], bands[band], p, q, V(h * rnd(1.15, 1.4), h, h * (side ? 0.8 : 1)));
+    const m = att(r.bone, pgeos[Math.floor(Math.random() * 4)], bands[band], p, q, V(h * rnd(1.15, 1.4) * v.plateW, h * v.plateH, h * (side ? 0.8 : 1)));
     plates.push(m);
   };
   for (let s = s0; s <= s1; s += 5.6) place(s, 0);
@@ -327,7 +332,7 @@ export function buildKaiju() {
     att('el' + S, new THREE.ConeGeometry(0.9, 3.4, 6), M.claw, el.clone().add(V(s * 0.5, 0, -3.1)), qd(V(s * 0.3, -0.4, -1)));
     att('sh' + S, lumpy(3.2, 2.2, 3.6, 0.15), M.skin, sh.clone().add(V(s * 1.5, 3, -1)));
     // horns swept back from the skull, knobs above the eyes
-    att('head', new THREE.ConeGeometry(1.1, 7, 7), M.claw, hd(s * 3.4, 4.4, -1.6), qd(V(s * 0.35, 0.55, -1)));
+    att('head', new THREE.ConeGeometry(1.1 * v.horn, 7 * v.horn, 7), M.claw, hd(s * 3.4, 4.4, -1.6), qd(V(s * 0.35, 0.55, -1)));
     att('head', new THREE.ConeGeometry(0.7, 4, 6), M.claw, hd(s * 4.8, 2.6, -3), qd(V(s * 0.6, 0.3, -1)));
     for (let k = 0; k < 3; k++) att('head', new THREE.ConeGeometry(0.4, 1.3, 5), M.claw, hd(s * (3.2 - k * 0.9), 3.9 - k * 0.15, 5.2 + k * 0.9), qd(V(s * 0.2, 1, 0.2)));
     // gill slits on the neck that pulse with the plates
@@ -335,11 +340,31 @@ export function buildKaiju() {
     // spikes under the chin
     for (let k = 0; k < 3; k++) att('jaw', new THREE.ConeGeometry(0.45, 2, 5), M.claw, jw.clone().add(V(s * (2.6 - k * 0.5), -1.6, 3 + k * 2.4)), qd(V(s * 0.3, -1, -0.5)));
   }
+  // ---- the variant's own features
+  if (v.id === 'magmaw') {
+    // a rhino horn on the snout, slabs of rock-hard hide over the shoulders, forearms and thighs, more cracks of light
+    att('head', new THREE.ConeGeometry(1.5, 6.5, 7), M.claw, hd(0, 1.4, 10.6), qd(V(0, 1, 0.55)));
+    att('head', new THREE.ConeGeometry(0.8, 3, 6), M.claw, hd(0, 1.8, 6.8), qd(V(0, 1, 0.2)));
+    for (const [sd, S] of [[-1, 'L'], [1, 'R']]) {
+      for (let k = 0; k < 3; k++) att('sh' + S, lumpy(3.4 - k * 0.5, 1.3, 3.2 - k * 0.4, 0.25, 12), M.claw, W('sh' + S).add(V(sd * (3.5 + k * 0.8), 4.2 - k * 2.4, -0.5 + k * 0.3)), new THREE.Quaternion().setFromEuler(new THREE.Euler(0.2, 0, sd * (0.5 + k * 0.25))));
+      for (let k = 0; k < 2; k++) att('el' + S, lumpy(2.4, 1, 3, 0.25, 12), M.claw, W('el' + S).lerp(W('hand' + S), 0.3 + k * 0.35).add(V(sd * 2.2, 0.5, -1.2)), new THREE.Quaternion().setFromEuler(new THREE.Euler(0.3, 0, sd * 0.9)));
+      att('hip' + S, lumpy(5, 1.6, 5.5, 0.25, 12), M.claw, W('hip' + S).add(V(sd * 8.5, -1, -1)), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, sd * 0.9)));
+    }
+    for (let n = 0; n < 10; n++) { const r = ringAt(rnd(s0, s1)), side = Math.random() < 0.5 ? -1 : 1; scars.push(onSkin(r, side * rnd(0.2, 1.4), lumpy(1, 1, 1, 0.25, 10), M.scar, V(rnd(3, 6), 0.4, 0.4), 1.0, rnd(-1.2, 1.2))); }
+  }
+  if (v.id === 'voltra') {
+    // a crest of glowing blades fanned out behind the skull, long blades down the forearms, a forked, glowing tail tip
+    for (let k = -3; k <= 3; k++) { const a = k * 0.32; att('head', new THREE.ConeGeometry(0.55, 7 - Math.abs(k) * 0.9, 5), bands[7], hd(Math.sin(a) * 4.5, 3.5 + Math.cos(a) * 1.5, -3.5), qd(V(Math.sin(a) * 0.9, 0.8, -1))); }
+    for (const [sd, S] of [[-1, 'L'], [1, 'R']]) {
+      att('el' + S, new THREE.ConeGeometry(0.9, 9, 5), M.claw, W('el' + S).lerp(W('hand' + S), 0.55).add(V(sd * 1.8, 0.4, -3)), qd(V(sd * 0.25, 0.25, -1)));
+      att('tail11', new THREE.ConeGeometry(0.6, 5, 5), bands[0], W('tail11').add(V(sd * 1.2, 0.8, -5)), qd(V(sd * 0.5, 0.2, -1)));
+    }
+  }
   att('head', lumpy(1.4, 0.9, 2.6, 0.15), M.skin, hd(0, -0.2, 11.6));
   att('jaw', lumpy(1.7, 0.55, 4.6, 0.08), M.flesh, jw.clone().add(V(0, 1, 6.5)));
-  const eyeLight = new THREE.PointLight(0xff8a30, 50, 16, 2); eyeLight.position.copy(hd(0, 2, 9).sub(W('head'))); j.head.add(eyeLight);
-  const mouthLight = new THREE.PointLight(0x3ad8ff, 0, 70, 2); mouthLight.position.copy(hd(0, -3, 17).sub(W('head'))); j.head.add(mouthLight);
-  return { root, j, mats: M, plates, bands, scars, mouthLight, hq };
+  const eyeLight = new THREE.PointLight(v.eye, 50, 16, 2); eyeLight.position.copy(hd(0, 2, 9).sub(W('head'))); j.head.add(eyeLight);
+  const mouthLight = new THREE.PointLight(v.mouth, 0, 70, 2); mouthLight.position.copy(hd(0, -3, 17).sub(W('head'))); j.head.add(mouthLight);
+  return { root, j, mats: M, plates, bands, scars, mouthLight, hq, v };
 }
 
 // ------------------------------------------------------------------ robot surfaces: weathered painted steel, panel seams, rivets, rust and rain streaks
@@ -377,20 +402,20 @@ function robotTex() {
   RTEX = { map: tex(cc, true), normal: tex(normalFromHeight(hc, 2.5), false), rough: tex(rc, false), metal: tex(mc, false), hazard: tex(zc, true) };
   return RTEX;
 }
-function robotMats() {
+function robotMats(v) {
   const T = robotTex();
   const phys = (o) => new THREE.MeshPhysicalMaterial(Object.assign({ map: T.map, normalMap: T.normal, normalScale: new THREE.Vector2(1, 1), roughnessMap: T.rough, metalnessMap: T.metal, roughness: 1, metalness: 1, clearcoat: 0.4, clearcoatRoughness: 0.3, envMapIntensity: 1.25 }, o));
   // stencilled number on the chest, worn
-  const dc = cnv(256), D = dc.getContext('2d'); D.fillStyle = '#e9e4d6'; D.font = 'bold 170px Impact, "Arial Black", sans-serif'; D.textAlign = 'center'; D.textBaseline = 'middle'; D.fillText('04', 128, 120);
-  D.font = 'bold 26px Impact, "Arial Black", sans-serif'; D.fillText('SENTINEL', 128, 222);
+  const dc = cnv(256), D = dc.getContext('2d'); D.fillStyle = '#e9e4d6'; D.font = 'bold 170px Impact, "Arial Black", sans-serif'; D.textAlign = 'center'; D.textBaseline = 'middle'; D.fillText(v.num, 128, 120);
+  D.font = 'bold 26px Impact, "Arial Black", sans-serif'; D.fillText(v.label, 128, 222);
   D.globalCompositeOperation = 'destination-out'; for (let i = 0; i < 1400; i++) { D.fillStyle = `rgba(0,0,0,${rnd(0.3, 1)})`; D.fillRect(rnd(0, 256), rnd(0, 256), rnd(1, 5), rnd(1, 4)); }
   return {
-    armor: phys({ color: 0x51606e }),
-    armor2: phys({ color: 0x2e3640 }),
+    armor: phys({ color: v.paint }),
+    armor2: phys({ color: v.paint2 }),
     hazard: phys({ map: T.hazard, color: 0xffffff, metalness: 0.4 }),
     frame: phys({ color: 0x2c2e31, clearcoat: 0.1, metalnessMap: null, metalness: 0.9, roughness: 0.85 }),
     piston: new THREE.MeshStandardMaterial({ color: 0xc8ccd2, metalness: 1, roughness: 0.18, envMapIntensity: 1.6 }),
-    glow: new THREE.MeshStandardMaterial({ color: 0x0a2030, emissive: 0x6fd8ff, emissiveIntensity: 1.3 }),
+    glow: new THREE.MeshStandardMaterial({ color: 0x0a2030, emissive: v.glow, emissiveIntensity: 1.3 }),
     amber: new THREE.MeshStandardMaterial({ color: 0x301a00, emissive: 0xffa040, emissiveIntensity: 3 }),
     red: new THREE.MeshStandardMaterial({ color: 0x300000, emissive: 0xff2010, emissiveIntensity: 4 }),
     // the fold-out plasma blade, the thruster nozzles, rubber hoses
@@ -428,8 +453,8 @@ const put = (parent, geo, mat, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => {
 const lit = (m) => { m.castShadow = false; return m; };
 
 // ------------------------------------------------------------------ the robot: a jaeger, about 78 m tall
-export function buildRobot() {
-  const M = robotMats(), j = {}, root = new THREE.Group(), P = Math.PI;
+export function buildRobot(v = ROBOTS.sentinel) {
+  const M = robotMats(v), j = {}, root = new THREE.Group(), P = Math.PI;
   const pelvis = J(root, 0, 37, 0, 'pelvis', j);
   put(pelvis, plate(17, 7, 12), M.frame);
   put(pelvis, trap(8, 14, 9, 3), M.armor, 0, -2.6, 6.6, -0.12);
@@ -584,7 +609,29 @@ export function buildRobot() {
   }
   // floodlights on the shoulders of the chest, a light inside the reactor
   const lamp = new THREE.SpotLight(0xffd8a0, 14000, 260, 0.42, 0.6, 2); lamp.position.set(0, 21, 8); chest.add(lamp); const tgt = new THREE.Object3D(); tgt.position.set(0, -10, 80); chest.add(tgt); lamp.target = tgt;
-  const coreLight = new THREE.PointLight(0x6fd8ff, 260, 30, 2); coreLight.position.set(0, 9.5, 13); chest.add(coreLight);
+  const coreLight = new THREE.PointLight(v.glow, 260, 30, 2); coreLight.position.set(0, 9.5, 13); chest.add(coreLight);
   const thrustLight = new THREE.PointLight(0xff8a30, 0, 60, 2); thrustLight.position.set(0, -2, -14); chest.add(thrustLight);
-  return { root, j, mats: M, core, visor, coreLight, thrustLight };
+  // ---- the variant: shoulder and fist size, and its own armour pieces
+  for (const S of ['L', 'R']) { j['pad' + S].scale.setScalar(v.pad); j['fist' + S].scale.setScalar(v.fist); }
+  if (v.id === 'bulwark') {
+    for (const [s, S] of [[-1, 'L'], [1, 'R']]) {
+      put(j['el' + S], plate(2.2, 19, 13, 0.8), M.armor, s * 7.4, -8.5, 0.5, 0, 0, s * 0.06);        // forearm shields
+      put(j['el' + S], plate(0.6, 15, 1.1, 0.2), M.hazard, s * 8.6, -8.5, 6.8);
+      put(j['hip' + S], trap(10, 12, 9, 2.4, 1.5), M.armor, 0, -5, 6.4, -0.1);                         // thigh guards
+      put(j['knee' + S], trap(9, 11, 6, 2.4, 1.2), M.armor2, 0, -3, 6.2, -0.15);
+      put(head, trap(1.6, 0.4, 5.5, 1.4, 0.3), M.armor2, s * 5.2, 6.4, -1, 0, 0, -s * 0.7);           // side horns
+    }
+    put(chest, trap(20, 26, 6, 3.4, 1.5), M.armor2, 0, 1.4, 8.2, 0.12);                                  // a belly plate under the reactor
+    put(head, plate(1.6, 4.6, 10, 0.4), M.armor, 0, 8.4, -0.5);                                           // a crest
+  }
+  if (v.id === 'striker') {
+    for (const s of [-1, 1]) {
+      put(chest, trap(1.1, 0.4, 26, 5, 0.3), M.armor, s * 6.5, 31, -12, -0.32, 0, -s * 0.36);           // back fins
+      lit(put(chest, plate(0.4, 18, 0.4, 0.1), M.glow, s * (6.5 + 3.2), 29, -12.3, -0.32, 0, -s * 0.36));
+    }
+    put(head, trap(0.7, 0.3, 4.5, 8, 0.2), M.armor2, 0, 8.2, -0.5);                                       // a crest fin
+    put(j.elR, trap(1.0, 0.3, 22, 4.2, 0.2), M.blade, 6.2, -11, 0);                                       // a fixed blade down the right forearm
+    lit(put(j.elR, plate(0.3, 18, 0.5, 0.1), M.edge, 6.2, -11, 2.2));
+  }
+  return { root, j, mats: M, core, visor, coreLight, thrustLight, v };
 }
